@@ -1,0 +1,138 @@
+
+exec("echo create table conversations")
+create_table("conversations") {
+	t.Column("id", "uuid", {"primary": true})
+	t.Column("occurredon", "timestamp", {})
+	t.Column("publish", "bool", {})
+}
+
+exec("echo create table authors")
+create_table("authors") {
+	t.Column("id", "uuid", {"primary": true})
+	t.Column("name", "string", {})
+}
+
+exec("echo create table annotations")
+create_table("annotations") {
+	t.Column("id", "uuid", {"primary": true})
+	t.Column("note", "string", {})
+}
+
+exec("echo create table quotes")
+create_table("quotes") {
+	t.Column("id", "uuid", {"primary": true})
+	t.Column("saidon", "timestamp", {})
+	t.Column("sequence", "integer", {})
+	t.Column("phrase", "string", {})
+	t.Column("publish", "bool", {})
+	t.Column("annotation_id", "uuid", {"null": true})
+	t.Column("author_id", "uuid", {})
+	t.Column("conversation_id", "uuid", {})
+	t.ForeignKey("annotation_id", {"annotations": ["id"]}, {"null": true})
+	t.ForeignKey("author_id", {"authors": ["id"]}, {"on_delete": "restrict deferrable initially deferred"})
+   t.ForeignKey("conversation_id", {"conversations": ["id"]}, {"on_delete": "restrict deferrable initially deferred"})
+}
+
+exec("echo create table users")
+create_table("users"){
+    t.Column("id", "uuid", {"primary": true})
+    t.Column("email", "string", {})
+    t.Column("password_hash", "string", {})
+}
+
+exec("echo create table permissions")
+create_table("permissions") {
+	t.Column("id", "uuid", {"primary": true})
+	t.Column("name", "string", {})
+	t.Column("user_id", "uuid", {})
+	t.ForeignKey("user_id", {"users": ["id"]}, {"on_delete": "restrict deferrable initially deferred"})
+}
+
+exec("echo create view author_counts")
+sql ("
+/* returns an author record but adds a count of the number of quotes for the author */
+CREATE OR REPLACE VIEW author_counts AS
+        SELECT a.id AS id,
+        a.name AS name,
+        a.created_at AS created_at,
+        a.updated_at AS updated_at,
+        COUNT(a.id) AS count
+        FROM (authors a
+                JOIN quotes q ON ((a.id = q.author_id)))
+        GROUP BY a.id;
+")
+
+exec("echo create function pick_from_range")
+sql ("
+/* generate a random number in a defined range */
+CREATE OR REPLACE FUNCTION pick_from_range(bottom INTEGER ,top INTEGER) 
+   RETURNS INTEGER AS
+$$
+BEGIN
+   RETURN FLOOR(random()* (top-bottom + 1) + bottom);
+END;
+$$ language 'plpgsql' STRICT;")
+
+exec("echo create function shuffle_deck")
+sql ("
+
+/* shuffle_deck() Creates a table of conversation IDs and then scrambles them */
+/* using a Fisher-Yates Shuffle.  (for you computer science types)  */
+CREATE OR REPLACE FUNCTION shuffle_deck()
+RETURNS INTEGER
+AS $$
+DECLARE
+    max_rec     integer;
+    i           integer;
+    j           integer;
+    keys        uuid[];
+    marker      text;
+BEGIN
+
+    /* fastest way to clear the table */
+    IF EXISTS (SELECT * FROM pg_tables WHERE tablename='shuffled_conversations')
+         THEN
+             DROP TABLE shuffled_conversations;
+    END IF;    
+
+    CREATE TABLE shuffled_conversations (
+        sequence        integer NOT NULL PRIMARY KEY,
+        conversation_ID uuid NOT NULL
+    );
+    ALTER TABLE shuffled_conversations
+        ADD CONSTRAINT conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+
+    keys := ARRAY(SELECT id FROM conversations);    /* load up all the conversation ID values */
+    i := 0;                                         /* rolls over the entire array doing the shuffle */
+    max_rec := array_length(keys,1);                /* get number of conversations in the array */
+
+    LOOP
+        i := i + 1; /* move forward, there is no 0 element */
+
+        /* pick a random element still in the array */
+        /* insert it into the current position */
+        /* then put the current element into its position in the array */
+        /* by the time I'm done, the Keys array is trashed, don't try to use it */
+
+        j := pick_from_range(i,max_rec);    
+        INSERT INTO shuffled_conversations( sequence, conversation_ID) VALUES( i, keys[j] );
+        keys[j] := keys[i];
+
+        EXIT WHEN i = max_rec;
+    END LOOP;
+
+    /* set the current date as a comment on the table */
+    marker := (SELECT CURRENT_DATE);
+    EXECUTE FORMAT('COMMENT ON TABLE shuffled_conversations IS ''%I''', marker);
+
+    /* and the record count as a comment on the id column */
+    EXECUTE FORMAT('COMMENT ON COLUMN shuffled_conversations.sequence IS ''%I''', max_rec);
+    
+    /* tag this run of the record shuffle */
+    keys[1] := (SELECT uuid_generate_v4());
+    EXECUTE FORMAT('COMMENT ON COLUMN shuffled_conversations.conversation_id IS ''%I''', keys[1]);
+    
+    RETURN max_rec;
+END
+$$ language 'plpgsql' STRICT;
+")

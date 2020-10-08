@@ -12,5 +12,6 @@ require (
 	github.com/gobuffalo/mw-paramlogger v0.0.0-20190129202837-395da1998525
 	github.com/gobuffalo/packr/v2 v2.8.0
 	github.com/gobuffalo/pop/v5 v5.2.4
+	github.com/gorilla/sessions v1.2.0
 	github.com/unrolled/secure v0.0.0-20190103195806-76e6d4e9b90c
 )
