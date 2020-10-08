@@ -3,8 +3,10 @@ package actions
 import (
 	"github.com/gobuffalo/buffalo"
 	"github.com/gobuffalo/envy"
+	"github.com/gobuffalo/logger"
 	forcessl "github.com/gobuffalo/mw-forcessl"
 	paramlogger "github.com/gobuffalo/mw-paramlogger"
+	"github.com/gorilla/sessions"
 	"github.com/unrolled/secure"
 
 	"github.com/gobuffalo/buffalo-pop/v2/pop/popmw"
@@ -35,10 +37,15 @@ var T *i18n.Translator
 // declared after it to never be called.
 func App() *buffalo.App {
 	if app == nil {
-		app = buffalo.New(buffalo.Options{
+		buffaloOptions := buffalo.Options{
+			Host:        envy.Get("FORUM_HOST", envy.Get("HOST", "")),
 			Env:         ENV,
 			SessionName: "_quotewall_session",
-		})
+			LogLvl:      logger.InfoLevel,
+		}
+		cookieStore := defaultCookieStore(buffaloOptions)
+		buffaloOptions.SessionStore = cookieStore
+		app = buffalo.New(buffaloOptions)
 
 		// Automatically redirect to SSL
 		app.Use(forceSSL())
@@ -88,4 +95,24 @@ func forceSSL() buffalo.MiddlewareFunc {
 		SSLRedirect:     ENV == "production",
 		SSLProxyHeaders: map[string]string{"X-Forwarded-Proto": "https"},
 	})
+}
+
+func defaultCookieStore(opts buffalo.Options) sessions.Store {
+	secret := envy.Get("SESSION_SECRET", "")
+	if secret == "" && (ENV == "development" || ENV == "test") {
+		secret = "buffalo-secret"
+	}
+	// In production a SESSION_SECRET must be set!
+	if secret == "" {
+		opts.Logger.Warn("Unless you set SESSION_SECRET env variable, your session storage is not protected!")
+	}
+	cookieStore := sessions.NewCookieStore([]byte(secret))
+	// SameSite field values: strict=3, Lax=2, None=4, Default=1.
+	cookieStore.Options.SameSite = 3
+	//Cookie secure attributes, see: https://www.owasp.org/index.php/Testing_for_cookies_attributes_(OTG-SESS-002)
+	cookieStore.Options.HttpOnly = true
+	if ENV == "production" {
+		cookieStore.Options.Secure = true
+	}
+	return cookieStore
 }
