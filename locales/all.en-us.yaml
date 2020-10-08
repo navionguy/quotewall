@@ -1,3 +1,51 @@
 # For more information on using i18n see: https://github.com/nicksnyder/go-i18n
 - id: welcome_greeting
-  translation: "Welcome to Buffalo (EN)"
+  translation: "Welcome to the Quote Archive"
+- id: change_language
+  translation: "Change Language EN"
+- id: "conversation.occurred.on"
+  translation: "Occurred On"
+- id: "quote.created.success"
+  translation: "Quote was successfully created."
+- id: "quote.updated.success"
+  translation: "Quote was successfully updated."
+- id: "quote.destroyed.success"
+  translation: "Quote was successfully destroyed."
+- id: speakers_name
+  translation: "Speaker's Name"
+- id: publish
+  translation: "Publish"
+- id: publish_yes
+  translation: "Yes"
+- id: publish_no
+  translation: "No"
+- id: said_on_date
+  translation: "Said on"
+- id: quote_text
+  translation: "Quote"
+- id: publish_quote
+  translation: "Publish Quote?"
+- id: quote_notes
+  translation: "Notes"
+- id: optional
+  translation: "Optional"
+- id: prev_comment_tip
+  translation: "Previous Comment"
+- id: next_comment_tip
+  translation: "Next Comment"
+- id: save_label
+  translation: "Save"
+- id: cancel_label
+  translation: "Cancel"
+- id: confirm_prompt
+  translation: "Are you sure?"
+- id: add_speaker_tip
+  translation: "Add Speaker"
+- id: record_conversation
+  translation: "Record a New Quote"
+- id: authors_title
+  translation: "Authors"
+- id: author_heading
+  translation: "Author"
+- id: quote_count
+  translation: "Quote Count"
