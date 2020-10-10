@@ -1,0 +1,34 @@
+<html>
+<script>
+    function myFunction(x) {
+        document.getElementById(x).style.background = "yellow";
+        
+    }
+</script>
+
+<div class="page-header">
+    <h1>Create a new Speaker</h1>
+</div>
+
+    <%= form_for(author, {action: authorsPath(), method: "POST"}) { %>
+
+        <table width="100%">
+            <%= f.HiddenTag("cvjson", {value: cvj}) %>
+            <p id="demo"></p>
+            <col width="25%">
+            <col width="45%">
+            <col width="30%">
+            <tr>
+                <td colspan="1">
+                    <%= f.InputTag("name", {label: t("speakers_name"), value: author.Name }) %>
+                </td>
+            </tr>
+        </table>
+        
+        <input type="image" class="btn btn-info" data-toggle="tooltip" title="Save" src="<%= assetPath("images/Save.png") %>">
+        <a href="<%= conversationsPath() %>new"class="btn btn-warning" data-confirm="Are you sure?"  data-toggle="tooltip" title="Cancel" >
+            <img src="<%= assetPath("images/Cancel.png") %>">
+        </a>
+    <% } %>
+      
+    </html>
