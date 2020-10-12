@@ -4,15 +4,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gobuffalo/suite"
 	"github.com/gobuffalo/uuid"
 	"github.com/navionguy/quotewall/models"
 	"github.com/stretchr/testify/require"
 )
 
-type ModelSuite struct {
+/*type modelSuite struct {
 	*suite.Model
-}
+}*/
 
 func Test_Author(t *testing.T) {
 
@@ -66,7 +65,7 @@ const validUUID = "b39300f0-6760-4feb-bc32-4b8682b0175d" // matches entry in tes
 const validName = "George P. Burdell"
 
 // Test for finding an existing author
-func (ms *ModelSuite) Test_Author_FindByID() {
+func (ms *modelSuite) Test_Author_FindByID() {
 	//	ms.LoadFixture("test authors")
 
 	id, err := uuid.FromString(validUUID)
@@ -112,7 +111,7 @@ func (ms *ModelSuite) Test_Author_FindByID() {
 }
 
 // test that FindByID correctly handles NOT finding the author
-func (ms *ModelSuite) Test_Author_FindByID_BadID() {
+func (ms *modelSuite) Test_Author_FindByID_BadID() {
 	ms.LoadFixture("test authors")
 
 	id, err := uuid.FromString(invalidUUID)
@@ -136,7 +135,7 @@ func (ms *ModelSuite) Test_Author_FindByID_BadID() {
 	}
 }
 
-func (ms *ModelSuite) Test_Author_Create() {
+func (ms *modelSuite) Test_Author_Create() {
 	ms.LoadFixture("test authors")
 
 	auth := models.Author{
@@ -154,7 +153,7 @@ func (ms *ModelSuite) Test_Author_Create() {
 	}
 }
 
-func (ms *ModelSuite) Test_Author_CreateInvalid() {
+func (ms *modelSuite) Test_Author_CreateInvalid() {
 	ms.LoadFixture("test authors")
 
 	auth := models.Author{}

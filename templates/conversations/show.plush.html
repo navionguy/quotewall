@@ -1,0 +1,71 @@
+<style>
+  .container { 
+    height: 630px;
+    width: 800px;
+    position: relative;
+  }
+  
+  .vertical-center {
+    margin: 0;
+    position: absolute;
+    top: 40%;
+    left: 15%;
+    right: 5%;
+    -ms-transform: translateY(-50%);
+    transform: translateY(-50%);
+  }
+
+  body {
+    font-family: Bodoni MT;
+  }
+  </style>
+  
+  <div class="container">
+    <div align="center" class="vertical-center">
+      <table><col width=100%>
+        <tr>
+            <td>
+                <table width="100%">
+                    <%= for (i, quote) in conversation.Quotes { %>
+                        <tr>
+                            <td ALIGN="CENTER">
+                                <p style="font-size:<%= fontsize %> ; font-family: Bodoni MT">
+                                    <b><%= quote.Phrase %></b>
+                                </p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td/>
+                        </tr>
+                        <tr>
+                            <td ALIGN="RIGHT">
+                                <font color="blue" size=3>
+                                    <%= quote.Author.Name %>
+                                </font>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td ALIGN="RIGHT">
+                                <font color="blue">
+                                    <%= quote.SaidOn.Format("Jan _2, 2006") %>
+                                </font>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td ALIGN="CENTER">
+                                <font color="red">
+                                    <%=                                     
+                                    if (!quote.Annotation) {
+                                        quote.Annotation.Note
+                                    }%>
+                                    <%= notes[i] %>
+                                </font>
+                            </td>
+                        </tr>
+                        <% } %>
+                  </table>
+                </td>
+            </tr>
+        </table>
+      </div>
+    </div>

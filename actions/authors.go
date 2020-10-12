@@ -97,23 +97,23 @@ func (v AuthorsResource) Create(c buffalo.Context) error {
 	}
 
 	// put the conversation back into the form
-	//conv := models.Conversation{}
-	//err := conv.UnmarshalConversation(cvjson)
-	/*
-		if err != nil {
-			return errors.WithStack(err)
-		}
+	conv := models.Conversation{}
+	err := conv.UnmarshalConversation(cvjson)
 
-		authors := []models.Author{}
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
-		// Retrieve all Authors from the DB
-		if err := tx.Order("name").All(&authors); err != nil {
-			return errors.WithStack(err)
-		}
+	authors := []models.Author{}
 
-		c.Set("conversation", conv)
-		c.Set("authors", authors)
-		c.Set("cvj", cvjson)*/
+	// Retrieve all Authors from the DB
+	if err := tx.Order("name").All(&authors); err != nil {
+		return errors.WithStack(err)
+	}
+
+	c.Set("conversation", conv)
+	c.Set("authors", authors)
+	c.Set("cvj", cvjson)
 
 	return c.Render(200, r.HTML("conversations/new"))
 }
@@ -150,8 +150,7 @@ func (v AuthorsResource) unMarshalConversation(c buffalo.Context) (*models.Conve
 	}
 
 	return conv, true
-}
-*/
+}*/
 
 // Update changes an Author in the DB. This function is mapped to
 // the path PUT /authors/{author_id}

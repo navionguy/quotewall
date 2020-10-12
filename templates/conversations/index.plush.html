@@ -1,0 +1,138 @@
+<Html>
+  <script> src="jquery.min.js"</script>
+  <script> src="bootstrap.min.js"</script>
+  <script>
+    var filterOn = false;
+
+    function setup() {
+      checkForFilters()
+
+      if (filterOn) {
+        cf = document.getElementById("clearFilter");
+        cf.style = "display:default";
+      }
+    }
+
+    // check to see if any filter parameters are set
+    function checkForFilters() {
+    
+      // the only filter defined so far.
+      if(window.location.href.indexOf("author") > -1){
+          filterOn = true;
+          return;
+      }
+    }
+
+  </script>
+<style>
+/* Tooltip container */
+.tooltip {
+    position: relative;
+    display: inline-block;
+  }
+
+/* Tooltip text */
+.tooltip .tooltiptext {
+    visibility: hidden;
+    width: 120px;
+    background-color: #555;
+    color: #fff;
+    text-align: center;
+    padding: 5px 0;
+    border-radius: 6px;
+
+    /* Position the tooltip text */
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -60px;
+
+    /* Fade in tooltip */
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+/* Tooltip arrow */
+.tooltip .tooltiptext::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #555 transparent transparent transparent;
+}
+
+/* Show the tooltip text when you mouse over the tooltip container */
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
+
+</style>
+
+<div class="page-header">
+  <h1><%= t("welcome_greeting") %></h1>
+</div>
+<ul class="list-unstyled list-inline">
+  <li>
+    <a href="<%= newConversationsPath() %>" class="btn btn-primary"><img src="<%= assetPath("images/AddNew.png") %>"/></a>
+    <a href="<%= conversationsPath() %>" id="clearFilter" class="btn btn-primary" style="display:none"><img src="<%= assetPath("images/ClearFilter.png") %>" display="none" /></a>
+  </li>
+</ul>
+
+<table class="center table table-striped">
+  <thead>
+  <th><%= t("conversation.occurred.on") %></th>
+    <th><%= t("quote_text") %></th>
+    <th>&nbsp;</th>
+  </thead>
+  <tbody>
+    <%= for (conversation) in conversations { %>
+      <%  
+      if (len(conversation.Quotes) > 0) {
+          let quote = conversation.Quotes[0]
+          let phrase = quote.Phrase
+          let author = quote.Author.Name
+          if (len(conversation.Quotes) > 1) {
+              let elipse = "..."
+          } else {
+              let elipse = " " 
+          }   
+      } else {
+          let phrase = " " 
+          let elipse = " " 
+          let author = " "
+      }   
+      %>  
+
+      <tr>
+      <td width="140px"><%= conversation.OccurredOn.Format("Jan _2, 2006") %></td>
+        <td width="500px">
+            <a href="<%= conversationsPath() %>/%7B<%= conversation.ID.String() %>%7D" data-toggle="tooltip" title="View"><%= phrase %></a><br><%= author %>
+        </td>
+        <td width="300px">
+          <div align="right">
+            <%= elipse %>
+            <a href="<%= conversationPath({ conversation_id: conversation.ID }) %>" data-toggle="tooltip" title="View" class="btn btn-info"><img src="<%= assetPath("images/view.png") %>"/></a>
+            <a href="<%= editConversationPath({ conversation_id: conversation.ID }) %>" data-toggle="tooltip" title="Edit" class="btn btn-warning"><img src="<%= assetPath("images/edit.png") %>"/></a>
+            <a href="<%= conversationPath({ conversation_id: conversation.ID }) %>" data-toggle="tooltip" title="Delete" data-method="DELETE" data-confirm="Are you sure?" class="btn btn-danger"><img src="<%= assetPath("images/recycle.png") %>"/></a>
+          </div>
+        </td>
+      </tr>
+    <% } %>
+  </tbody>
+</table>
+<div align="right">
+  <a href="<%= conversationsPath() %>export/" data-toggle="tooltip" title="Export to Json" class="btn btn-info"><img src="<%= assetPath("images/json.png") %>"/></a>
+</div>
+<div class="text-center">
+  <%= paginator(pagination) %>
+</div>
+
+<body onload="setup()">
+  </body>
+
+</html>

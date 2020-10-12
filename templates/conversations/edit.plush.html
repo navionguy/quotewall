@@ -1,0 +1,55 @@
+<html>
+<script>
+    function myFunction(x) {
+        document.getElementById(x).style.background = "yellow";
+        
+    }
+</script>
+
+<div class="page-header">
+    <h1>Edit a Quote</h1>
+</div>
+
+    <%= form_for(quote, {action: conversationsPath(), method: "PUT"}) { %>
+
+        <table width="100%">
+            <%= f.HiddenTag("sequence", {value: quote.Sequence}) %>
+            <%= f.HiddenTag("option", {value:"none"}) %>
+            <col width="25%">
+            <col width="45%">
+            <col width="30%">
+            <tr>
+                <td colspan="3">
+                    <%= f.TextArea("Phrase", {label: t("quote_text"), value: quote.Phrase, rows: 10 }) %>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="1">
+                    <%= f.SelectTag("AuthorID", {label: t("speakers_name"), options: authors, value: quote.AuthorID }) %>
+                    
+                </td>
+                <td valign="middle">
+                    <input type="image" class="btn btn-info" data-toggle="tooltip" title="Add Speaker" onfocus="option.value='addAuthor'" src="<%= assetPath("images/AddItem.png") %>">
+                </td>
+                <td colspan="1">
+                    <%= f.InputTag("SaidOn", {class: "datepicker", label: t("said_on_date"), value: quote.SaidOn.Format("01/02/2006") }) %>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <%= f.CheckboxTag("MakePublic", {label: t("publish_quote"), value: quote.Publish }) %>
+                </td>
+                <td colspan="2">
+                    <%= f.InputTag("Annotation", {label: t("quote_notes"), placeholder: t("optional"), value: annotation.Note }) %>
+                </td>
+            </tr>
+        </table>
+        
+        <input type="image" class="btn btn-info" data-toggle="tooltip" title="Update" onfocus="option.value='update'" src="<%= assetPath("images/Save.png") %>">
+        <input type="image" class="btn btn-primary" data-toggle="tooltip" title="Add Reply" onfocus="option.value='reply'" src="<%= assetPath("images/Reply.png") %>">
+        <a href="<%= conversationsPath() %>"class="btn btn-warning" data-confirm="Are you sure?"  data-toggle="tooltip" title="Cancel" >
+            <img src="<%= assetPath("images/Cancel.png") %>">
+        </a>
+    <% } %>
+      
+    </html>
