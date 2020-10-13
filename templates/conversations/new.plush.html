@@ -1,7 +1,7 @@
 <html>
     <head>
         <%= stylesheetTag("application.css") %>
-        <%= stylesheetTag("tiny-date-picker.css") %>
+        <%= stylesheetTag("css/tiny-date-picker.css") %>
     </head>
 <%= javascriptTag("application.js") %>
 
@@ -117,12 +117,20 @@ var TinyDatePicker = null;
             conv.Quotes[seq].phrase = document.getElementById("conversation-Phrase").value;
             conv.Quotes[seq].publish = document.getElementById("conversation-MakePublic").checked;
             conv.Quotes[seq].said_on = dt;
+            conv.Quotes[seq].sequence = seq;
+            conv.Quotes[seq].authorid = document.getElementById("conversation-AuthorID").value;
+            conv.Quotes[seq].annotation = document.getElementById("conversation-Annotation").value;
             return true;
         }
         var quote = { phrase: document.getElementById("conversation-Phrase").value,
                       said_on: dt,
                       sequence: seq,
+                      phrase: document.getElementById("conversation-Phrase").value,
                       publish: document.getElementById("conversation-MakePublic").checked,
+                      said_on: dt,
+                      sequence: seq,
+                      authorid: document.getElementById("conversation-AuthorID").value,
+                      annotation: document.getElementById("conversation-Annotation").value,
                     };
 
         if ( conv.Quotes == null ) {
@@ -157,6 +165,13 @@ var TinyDatePicker = null;
         saveConversation();
         document.getElementById("conversation-option").value = "addAuthor";
         window.location.href = windows.location.hostname + "/authors/new";
+    }
+
+    function sendConversation() {
+      document.getElementById("conversation-option").value = "save";
+      seq = parseInt(document.getElementById("conversation-sequence").value);
+      saveQuote(seq, true);   
+      saveConversation();
     }
 
 </script>
@@ -209,7 +224,7 @@ var TinyDatePicker = null;
             </tr>
         </table>
         
-        <input type="image" class="btn btn-info" data-toggle="tooltip" title= "<%= t("save_label") %>" onfocus="option.value='save'" src="<%= assetPath("images/Save.png") %>">
+        <input type="image" class="btn btn-info" data-toggle="tooltip" title= "<%= t("save_label") %>" onclick="sendConversation()" src="<%= assetPath("images/Save.png") %>">
 
         <img id="prevButton" class="btn btn-success" src = "<%= assetPath("images/GrayPrev.png") %>" title = "<%= t("prev_comment_tip") %>" onclick="prevQuote()">
         <img class="btn btn-primary" src = "<%= assetPath("images/Reply.png") %>" title = "<%= t("next_comment_tip") %>" onclick="nextQuote()">
