@@ -1,46 +1,260 @@
 <html>
+    <head>
+        <%= stylesheetTag("application.css") %>
+        <%= stylesheetTag("css/tiny-date-picker.css") %>
+    </head>
+<%= javascriptTag("application.js") %>
+
 <script>
-    function myFunction(x) {
-        document.getElementById(x).style.background = "yellow";
-        
+  /* I pass conversations back and forth from the server in JSON
+      Below is the example of the JSON
+
+			{"id":"00000000-0000-0000-0000-000000000000",
+			"created_at":"0001-01-01T00:00:00Z",
+			"updated_at":"0001-01-01T00:00:00Z",
+			"occurredon":"2020-10-15T11:07:40.236165-04:00",
+			"publish":true,
+			"Quotes":[{
+				"id":"00000000-0000-0000-0000-000000000000",
+				"created_at":"0001-01-01T00:00:00Z",
+				"updated_at":"0001-01-01T00:00:00Z",
+				"said_on":"2020-10-15T11:07:40.236164-04:00",
+				"sequence":0,
+				"phrase":"A shiny new quote.",
+				"publish":true,
+				"Author":{
+					"id":"00000000-0000-0000-0000-000000000000",
+					"created_at":"0001-01-01T00:00:00Z",
+					"updated_at":"0001-01-01T00:00:00Z",
+					"name":""
+				},
+				"Annotation":{
+					"id":"00000000-0000-0000-0000-000000000000",
+					"created_at":"0001-01-01T00:00:00Z",
+					"updated_at":"0001-01-01T00:00:00Z",
+					"note":"A snide comment"
+				},
+				"conversation_id":"00000000-0000-0000-0000-000000000000",
+				"author_id":"6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+				"annotation_id":null
+			}]
+		}
+  */
+var conv = null;
+var cvt = null;
+var dp = null;
+var TinyDatePicker = null;
+
+    function setupConversation() {
+        // first, create the conversation object based on the passed json
+        // decode the encoded json
+        var cvejs = document.getElementById("conversation-cvjson").value;
+        var cvjs = decodeURIComponent(cvejs);
+        conv = JSON.parse(cvjs);
+
+        // start with the SaidOn date initialized to the occurredOn value
+        //document.getElementById("quote-SaidOn").value = conv.occurredon;
+
+        document.getElementById("conversation-sequence").value = "0";
+        loadQuote(0);
+
+        var today = new Date();
+        TinyDatePicker = DateRangePicker.TinyDatePicker;
+        dp = DateRangePicker.TinyDatePicker(".datepicker", {
+            mode: 'dp-below', 
+            min: '05/05/1995',
+            max: today,
+            });
     }
+
+    // prevQuote decrements
+    function prevQuote() {
+        seq = document.getElementById("conversation-sequence");
+        newValue = parseInt(seq.value) - 1;
+        if (newValue >= 0) {
+            seq.value = newValue;
+        } else {
+            seq.value = 0;
+        }
+
+        // if I bumped back to the first element, disable the prev button
+        if (newValue == 0) {
+            prevButton.src = "<%= assetPath("images/GrayPrev.png") %>"
+            prevButton.disabled = false;
+        }
+    }
+
+    // nextQuote bumps the value of seq by one and enables the previous quote button
+    // then we call loadQuote() to display the selected quote.
+    function nextQuote() {
+        seq = parseInt(document.getElementById("conversation-sequence").value);
+        if (saveQuote(seq) == false) {
+            return;
+        }
+        document.getElementById("conversation-sequence").value = seq + 1;
+
+        prevButton.src = "<%= assetPath("images/Prev.png") %>"
+        prevButton.disabled = true;
+    }
+
+    // loadQuote uses the current value of seq to index into the Quotes array and
+    // copies all of his values into the form.
+    // if seq points pass the end of the array, initialize all of the fields to defaults
+    function loadQuote(seq) {
+        if (conv.Quotes == null || conv.Quotes.length < seq + 1) {
+            document.getElementById("conversation-Phrase").value = "";
+            document.getElementById("conversation-Annotation").value = "";
+            document.getElementById("conversation-SaidOn").value = new Date(conv.occurredon).toLocaleString("unknown", { year: "numeric", month: "numeric", day: "numeric"});
+
+            if (conv.publish) {
+              document.getElementById("conversation-MakePublic").checked = true;
+            } else {
+              document.getElementById("conversation-MakePublic").checked = false;
+            }
+            return;
+        }
+        document.getElementById("conversation-Phrase").value = conv.Quotes[seq].phrase;
+        // set the SaidOn field based on the occurredon value
+        document.getElementById("conversation-SaidOn").value = new Date(conv.Quotes[seq].said_on).toLocaleString("unknown", { year: "numeric", month: "numeric", day: "numeric"});
+        document.getElementById("conversation-Annotation").value = conv.Quotes[seq].Annotation.note;
+
+        if (conv.Quotes[seq].publish) {
+              document.getElementById("conversation-MakePublic").checked = true;
+            } else {
+              document.getElementById("conversation-MakePublic").checked = false;
+            }
+
+    }
+
+    // saveQuote extracts all the form values and either saves it into the current quote,
+    // or creates a new quote and appends it to the conversation.
+    // If the Phrase or the Speaker are empty strings, it won't allow you to save
+    function saveQuote(seq, chk = true) {
+        if (0 == document.getElementById("conversation-Phrase").value.length && chk == true) {
+            document.getElementById("no-phrase").style.display = "block";
+            return false;
+        }
+        if (0 == document.getElementById("conversation-AuthorID").value.length && chk == true) {
+            document.getElementById("no-author").style.display = "block";
+            return false;
+        }
+        var td = new Date(document.getElementById("conversation-SaidOn").value);
+        var dt = td.toISOString();
+        // pay for a bad decision made long ago
+        if (seq == 0) {
+            conv.publish = document.getElementById("conversation-MakePublic").checked;
+            conv.occurredon = dt;
+        }
+        
+        var author = {
+          id: document.getElementById("conversation-AuthorID").value,
+        }
+
+        var annot = {
+          note: document.getElementById("conversation-Annotation").value,
+        }
+        // if there is already a quote in the conversation with this sequence number
+        // saving the quote is really easy
+        if (conv.Quotes != null && seq < conv.Quotes.length) {
+            conv.Quotes[seq].phrase = document.getElementById("conversation-Phrase").value;
+            conv.Quotes[seq].publish = document.getElementById("conversation-MakePublic").checked;
+            conv.Quotes[seq].said_on = dt;
+            conv.Quotes[seq].sequence = seq;
+            conv.Quotes[seq].authorid = document.getElementById("conversation-AuthorID").value;
+            conv.Quotes[seq].annotation = document.getElementById("conversation-Annotation").value;
+            return true;
+        }
+        var quote = { phrase: document.getElementById("conversation-Phrase").value,
+                      said_on: dt,
+                      sequence: seq,
+                      phrase: document.getElementById("conversation-Phrase").value,
+                      publish: document.getElementById("conversation-MakePublic").checked,
+                      said_on: dt,
+                      sequence: seq,
+                      author_id: document.getElementById("conversation-AuthorID").value,
+                      annotation: annot,
+                    };
+
+        if ( conv.Quotes == null ) {
+          conv.Quotes = [quote];
+        } else {
+          conv.Quotes.push(quote);
+        }
+        
+        return true;
+    }
+
+    // saveConversation() takes the conversation object and marshals it into json
+    function saveConversation() {
+        document.getElementById("conversation-cvjson").value = encodeURIComponent(JSON.stringify(conv));
+    }
+
+    // clearNoPhrase hides the error for an empty phrase
+    function clearNoPhrase() {
+        document.getElementById("no-phrase").style.display = "none";
+    }
+
+    // clearNoAuthor hides the error for an empty author
+    function clearNoAuthor() {
+        document.getElementById("no-author").style.display = "none";
+    }
+
+    // addAuthor saves off the current quote, if there is one
+    // and then redirects the browser over to authors/new
+    function addAuthor() {
+        seq = parseInt(document.getElementById("conversation-sequence").value);
+        saveQuote(seq, false);     // if there was no quote to save, I don't care
+        saveConversation();
+        document.getElementById("conversation-option").value = "addAuthor";
+        window.location.href = windows.location.hostname + "/authors/new";
+    }
+
+    function sendConversation() {
+      document.getElementById("conversation-option").value = "save";
+      seq = parseInt(document.getElementById("conversation-sequence").value);
+      saveQuote(seq, true);   
+      saveConversation();
+    }
+
 </script>
+
 
 <div class="page-header">
     <h1>Edit a Quote</h1>
 </div>
 
-    <%= form_for(quote, {action: conversationsPath(), method: "PUT"}) { %>
+    <%= form_for(conversation, {action: conversationsPath(), method: "PUT"}) { %>
 
         <table width="100%">
-            <%= f.HiddenTag("sequence", {value: quote.Sequence}) %>
+            <%= f.HiddenTag("sequence") %>
             <%= f.HiddenTag("option", {value:"none"}) %>
+            <%= f.HiddenTag("cvjson", {value: cvj}) %>
             <col width="25%">
             <col width="45%">
             <col width="30%">
             <tr>
                 <td colspan="3">
-                    <%= f.TextArea("Phrase", {label: t("quote_text"), value: quote.Phrase, rows: 10 }) %>
+                    <%= f.TextArea("Phrase", {label: t("quote_text"), rows: 10 }) %>
                 </td>
             </tr>
             <tr>
                 <td colspan="1">
-                    <%= f.SelectTag("AuthorID", {label: t("speakers_name"), options: authors, value: quote.AuthorID }) %>
+                    <%= f.SelectTag("AuthorID", {label: t("speakers_name"), options: authors }) %>
                     
                 </td>
                 <td valign="middle">
                     <input type="image" class="btn btn-info" data-toggle="tooltip" title="Add Speaker" onfocus="option.value='addAuthor'" src="<%= assetPath("images/AddItem.png") %>">
                 </td>
                 <td colspan="1">
-                    <%= f.InputTag("SaidOn", {class: "datepicker", label: t("said_on_date"), value: quote.SaidOn.Format("01/02/2006") }) %>
+                    <%= f.InputTag("SaidOn", {class: "datepicker", label: t("said_on_date") }) %>
                 </td>
             </tr>
             <tr>
                 <td>
-                    <%= f.CheckboxTag("MakePublic", {label: t("publish_quote"), value: quote.Publish }) %>
+                    <%= f.CheckboxTag("MakePublic", {label: t("publish_quote") }) %>
                 </td>
                 <td colspan="2">
-                    <%= f.InputTag("Annotation", {label: t("quote_notes"), placeholder: t("optional"), value: annotation.Note }) %>
+                    <%= f.InputTag("Annotation", {label: t("quote_notes"), placeholder: t("optional") }) %>
                 </td>
             </tr>
         </table>
@@ -51,5 +265,8 @@
             <img src="<%= assetPath("images/Cancel.png") %>">
         </a>
     <% } %>
+
+    <body onload="setupConversation()">
+    </body>
       
     </html>

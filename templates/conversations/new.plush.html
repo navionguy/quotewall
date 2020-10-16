@@ -6,6 +6,40 @@
 <%= javascriptTag("application.js") %>
 
 <script>
+  /* I pass conversations back and forth from the server in JSON
+      Below is the example of the JSON
+
+			{"id":"00000000-0000-0000-0000-000000000000",
+			"created_at":"0001-01-01T00:00:00Z",
+			"updated_at":"0001-01-01T00:00:00Z",
+			"occurredon":"2020-10-15T11:07:40.236165-04:00",
+			"publish":true,
+			"Quotes":[{
+				"id":"00000000-0000-0000-0000-000000000000",
+				"created_at":"0001-01-01T00:00:00Z",
+				"updated_at":"0001-01-01T00:00:00Z",
+				"said_on":"2020-10-15T11:07:40.236164-04:00",
+				"sequence":0,
+				"phrase":"A shiny new quote.",
+				"publish":true,
+				"Author":{
+					"id":"00000000-0000-0000-0000-000000000000",
+					"created_at":"0001-01-01T00:00:00Z",
+					"updated_at":"0001-01-01T00:00:00Z",
+					"name":""
+				},
+				"Annotation":{
+					"id":"00000000-0000-0000-0000-000000000000",
+					"created_at":"0001-01-01T00:00:00Z",
+					"updated_at":"0001-01-01T00:00:00Z",
+					"note":"A snide comment"
+				},
+				"conversation_id":"00000000-0000-0000-0000-000000000000",
+				"author_id":"6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+				"annotation_id":null
+			}]
+		}
+  */
 var conv = null;
 var cvt = null;
 var dp = null;
@@ -13,7 +47,7 @@ var TinyDatePicker = null;
 
     function setup() {
         // first, create the conversation object based on the passed json
-        // dcoded the encode json
+        // decode the encoded json
         var cvejs = document.getElementById("conversation-cvjson").value;
         var cvjs = decodeURIComponent(cvejs);
         conv = JSON.parse(cvjs);
@@ -111,6 +145,14 @@ var TinyDatePicker = null;
             conv.publish = document.getElementById("conversation-MakePublic").checked;
             conv.occurredon = dt;
         }
+        
+        var author = {
+          id: document.getElementById("conversation-AuthorID").value,
+        }
+
+        var annot = {
+          note: document.getElementById("conversation-Annotation").value,
+        }
         // if there is already a quote in the conversation with this sequence number
         // saving the quote is really easy
         if (conv.Quotes != null && seq < conv.Quotes.length) {
@@ -129,8 +171,8 @@ var TinyDatePicker = null;
                       publish: document.getElementById("conversation-MakePublic").checked,
                       said_on: dt,
                       sequence: seq,
-                      authorid: document.getElementById("conversation-AuthorID").value,
-                      annotation: document.getElementById("conversation-Annotation").value,
+                      author_id: document.getElementById("conversation-AuthorID").value,
+                      annotation: annot,
                     };
 
         if ( conv.Quotes == null ) {
