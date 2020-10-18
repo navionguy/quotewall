@@ -69,16 +69,19 @@ var TinyDatePicker = null;
 
     // prevQuote decrements
     function prevQuote() {
-        seq = document.getElementById("conversation-sequence");
-        newValue = parseInt(seq.value) - 1;
-        if (newValue >= 0) {
-            seq.value = newValue;
-        } else {
-            seq.value = 0;
+        seq = parseInt(document.getElementById("conversation-sequence").value);
+        if (saveQuote(seq) == false) {
+            return;
         }
 
+        seq = seq - 1;
+        if (seq < 0) {
+            seq.value = 0;
+        }
+        loadQuote(seq);
+
         // if I bumped back to the first element, disable the prev button
-        if (newValue == 0) {
+        if (seq == 0) {
             prevButton.src = "<%= assetPath("images/GrayPrev.png") %>"
             prevButton.disabled = false;
         }
@@ -91,16 +94,19 @@ var TinyDatePicker = null;
         if (saveQuote(seq) == false) {
             return;
         }
-        document.getElementById("conversation-sequence").value = seq + 1;
+        seq = seq + 1;
+        loadQuote(seq);
 
         prevButton.src = "<%= assetPath("images/Prev.png") %>"
         prevButton.disabled = true;
     }
 
-    // loadQuote uses the current value of seq to index into the Quotes array and
+    // loadQuote uses the passed value of seq to index into the Quotes array and
     // copies all of his values into the form.
     // if seq points pass the end of the array, initialize all of the fields to defaults
     function loadQuote(seq) {
+        document.getElementById("conversation-Phrase").focus();
+        document.getElementById("conversation-sequence").value = seq;
         if (conv.Quotes == null || conv.Quotes.length < seq + 1) {
             document.getElementById("conversation-Phrase").value = "";
             document.getElementById("conversation-Annotation").value = "";
@@ -116,7 +122,13 @@ var TinyDatePicker = null;
         document.getElementById("conversation-Phrase").value = conv.Quotes[seq].phrase;
         // set the SaidOn field based on the occurredon value
         document.getElementById("conversation-SaidOn").value = new Date(conv.Quotes[seq].said_on).toLocaleString("unknown", { year: "numeric", month: "numeric", day: "numeric"});
-        document.getElementById("conversation-Annotation").value = conv.Quotes[seq].Annotation;
+        
+        if ('annotation' in conv.Quotes[seq]) {
+          document.getElementById("conversation-Annotation").value = conv.Quotes[seq].Annotation;
+        } else {
+          document.getElementById("conversation-Annotation").value = "";
+        }
+        document.getElementById("conversation-AuthorID").value = conv.Quotes[seq].author_id;
 
         if (conv.Quotes[seq].publish) {
               document.getElementById("conversation-MakePublic").checked = true;
@@ -153,6 +165,7 @@ var TinyDatePicker = null;
         var annot = {
           note: document.getElementById("conversation-Annotation").value,
         }
+        
         // if there is already a quote in the conversation with this sequence number
         // saving the quote is really easy
         if (conv.Quotes != null && seq < conv.Quotes.length) {
@@ -160,20 +173,24 @@ var TinyDatePicker = null;
             conv.Quotes[seq].publish = document.getElementById("conversation-MakePublic").checked;
             conv.Quotes[seq].said_on = dt;
             conv.Quotes[seq].sequence = seq;
-            conv.Quotes[seq].authorid = document.getElementById("conversation-AuthorID").value;
-            conv.Quotes[seq].annotation = document.getElementById("conversation-Annotation").value;
+            conv.Quotes[seq].author_id = document.getElementById("conversation-AuthorID").value;
+            if (document.getElementById("conversation-Annotation").value.length > 0) {
+              conv.Quotes[seq].annotation = annot;
+            }
             return true;
         }
         var quote = { phrase: document.getElementById("conversation-Phrase").value,
-                      said_on: dt,
-                      sequence: seq,
-                      phrase: document.getElementById("conversation-Phrase").value,
                       publish: document.getElementById("conversation-MakePublic").checked,
                       said_on: dt,
                       sequence: seq,
+                      said_on: dt,
+                      sequence: seq,
                       author_id: document.getElementById("conversation-AuthorID").value,
-                      annotation: annot,
                     };
+
+        if (document.getElementById("conversation-Annotation").length > 0) {
+          quote.annotation = annot;
+        }
 
         if ( conv.Quotes == null ) {
           conv.Quotes = [quote];
