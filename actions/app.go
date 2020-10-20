@@ -67,8 +67,10 @@ func App() *buffalo.App {
 
 		app.GET("/", HomeHandler)
 
+		cv := &ConversationsResource{}
 		app.Resource("/authors", &AuthorsResource{})
-		app.Resource("/conversations", &ConversationsResource{})
+		app.GET("/conversations/export/", cv.Export) // this is becoming useless and should probably go away
+		app.Resource("/conversations", cv)
 
 		app.ServeFiles("/", assetsBox) // serve files from the public directory
 	}

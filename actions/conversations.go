@@ -172,30 +172,23 @@ func (v ConversationsResource) Create(c buffalo.Context) error {
 
 	case "save":
 		verrs, err := conv.Create()
-		fmt.Println("Step:1")
 
 		if err != nil {
 			return errors.WithStack(err)
 		}
 
 		if verrs.HasAny() {
-			fmt.Println("2")
 			err = v.loadForm(conv, c)
-			fmt.Println("3")
 
 			if err != nil {
 				return errors.WithStack(err)
 			}
 			// set the verification errors into the context and send back the quote
 			c.Set("errors", verrs)
-			fmt.Println("4")
-			fmt.Println(verrs.Errors)
 
 			return c.Render(422, r.HTML("conversations/new.html"))
 		}
-		fmt.Println("5")
 		c.Flash().Add("success", "Conversation was created successfully")
-		fmt.Println("6")
 
 		return c.Redirect(302, fmt.Sprintf("/conversations//%%7B%s%%7D/", conv.ID.String()))
 		//return c.Render(201, r.Auto(c, conv))

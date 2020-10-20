@@ -12,11 +12,11 @@ import (
 
 // Quote holds what one person said
 type Quote struct {
-	ID        uuid.UUID `json:"id" db:"id"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
+	ID        uuid.UUID `json:"-" db:"id"`
+	CreatedAt time.Time `json:"-" db:"created_at"`
+	UpdatedAt time.Time `json:"-" db:"updated_at"`
 	SaidOn    time.Time `json:"said_on" db:"saidon" form:"SaidOn"`
-	Sequence  int       `json:"sequence" db:"sequence" form:"sequence"`
+	Sequence  int       `json:"-" db:"sequence" form:"sequence"`
 	Phrase    string    `json:"phrase" db:"phrase" form:"Phrase"`
 	Publish   bool      `json:"publish" db:"publish" form:"MakePublic"`
 
@@ -26,9 +26,9 @@ type Quote struct {
 	Annotation   *Annotation  `belongs_to:"annotation" db:"-"`
 
 	// Foreign keys
-	ConversationID uuid.UUID  `json:"conversation_id" db:"conversation_id"`
-	AuthorID       uuid.UUID  `json:"author_id" db:"author_id"`
-	AnnotationID   *uuid.UUID `json:"annotation_id" db:"annotation_id"`
+	ConversationID uuid.UUID  `json:"-" db:"conversation_id"`
+	AuthorID       uuid.UUID  `json:"-" db:"author_id"`
+	AnnotationID   *uuid.UUID `json:"-" db:"annotation_id"`
 }
 
 // String is not required by pop and may be deleted

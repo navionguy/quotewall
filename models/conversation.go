@@ -16,9 +16,9 @@ import (
 
 // Conversation Common element of one or more quotes
 type Conversation struct {
-	ID         uuid.UUID `json:"id" db:"id"`
-	CreatedAt  time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at" db:"updated_at"`
+	ID         uuid.UUID `json:"-" db:"id"`
+	CreatedAt  time.Time `json:"-" db:"created_at"`
+	UpdatedAt  time.Time `json:"-" db:"updated_at"`
 	OccurredOn time.Time `json:"occurredon" db:"occurredon"`
 	Publish    bool      `json:"publish" db:"publish"`
 
