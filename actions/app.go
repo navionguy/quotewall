@@ -69,6 +69,7 @@ func App() *buffalo.App {
 
 		cv := &ConversationsResource{}
 		app.Resource("/authors", &AuthorsResource{})
+		app.GET("/conversations/quickie", cv.QuickieQuote)
 		app.GET("/conversations/export/", cv.Export) // this is becoming useless and should probably go away
 		app.Resource("/conversations", cv)
 

@@ -18,6 +18,7 @@ require (
 	github.com/gobuffalo/uuid v2.0.5+incompatible
 	github.com/gobuffalo/validate/v3 v3.3.0
 	github.com/gofrs/uuid v3.3.0+incompatible
+	github.com/google/uuid v1.1.2
 	github.com/gorilla/sessions v1.2.1
 	github.com/markbates/grift v1.5.0
 	github.com/pkg/errors v0.9.1
