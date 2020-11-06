@@ -6,12 +6,11 @@ import (
 	"crypto/cipher"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
-	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -24,7 +23,6 @@ import (
 
 	"crypto"
 	rand "math/rand"
-	"strconv"
 )
 
 const quotewallhtml = `<!DOCTYPE html><html lang="en">
@@ -62,6 +60,11 @@ const errorhtml = `<!DOCTYPE html><html lang="en">
 
 const ctLayout = "2006-01-02" // the date format used in my json file
 
+const ageParam = "max-age" // only pull quotes that happened in the last n days
+const endRange = "before"  // only pull quotes that happened before specified date
+const startRange = "after" // only pull quotes that happened after specified date
+const speaker = "speaker"  // only pull quotes that involved the specified speaker
+
 var sdft time.Time // date time stamp of quote file I'm using
 
 //Utterancestype --
@@ -92,6 +95,8 @@ type pageParams struct {
 	ErrorMsg     string
 }
 
+type filterSet map[string]string
+
 var quotes archivetype
 var skips int // counter of how many times I hit quotes I shouldn't display
 
@@ -103,21 +108,12 @@ const filtercookie = "FilteredList"
 const nextquoteoffset = 16
 
 type nextQuoteBlob struct {
-	FrontJunk string
-	NextQuote int
-	BackJunk  string
+	FrontJunk    string
+	NextQuote    int
+	FilteredList []int
+	ParamHash    []byte
+	BackJunk     string
 }
-
-var filterkey []byte
-
-type filteredlist struct {
-	Iterator int
-	DaysOld  int
-	List     []int
-}
-
-var shuffled []int
-var shuffledday time.Time // once I day I should re-shuffle
 
 // ShuffledConversations holds id of a random conversation
 type ShuffledConversations struct {
@@ -132,38 +128,35 @@ type ShuffleData struct {
 	ServCor     time.Duration // correction to get time closer to server
 }
 
+type quickieRequest struct {
+	c          buffalo.Context
+	rqParams   map[string]string
+	paramsHash []byte
+	paramsChgd bool
+	quoteID    *uuid.UUID
+}
+
+var curShuffle *ShuffleData
+var filterKey []byte
+
 // QuickieQuote displays a random quote
 func (v ConversationsResource) QuickieQuote(c buffalo.Context) error {
-	// Get the DB connection from the context
-	/*	tx, ok := c.Value("tx").(*pop.Connection)
-		if !ok {
-			return errors.WithStack(errors.New("no transaction found"))
-		}*/
+	rq := newRequest(c)
 
-	if len(filterkey) == 0 {
-		// set encryption key for cookies
-		var err error
-		filterkey, err = uuid.New().MarshalBinary()
-
-		if err != nil {
-			filterkey = []byte("reallyweakkey")
-		}
-	}
-
-	shuffle, err := getShuffleData(c)
+	err := rq.getShuffleData()
 
 	if err != nil {
 		return c.Error(404, err)
 	}
 
-	id, err := pickQuote(c, shuffle)
+	err = rq.pickQuote()
 
 	if err != nil {
 		return c.Error(404, err)
 	}
 
 	conv := models.Conversation{}
-	err = models.DB.Eager("Quotes.Conversation").Eager("Quotes").Eager("Quotes.Author").Eager("Quotes.Annotation").Find(&conv, id)
+	err = models.DB.Eager("Quotes.Conversation").Eager("Quotes").Eager("Quotes.Author").Eager("Quotes.Annotation").Find(&conv, rq.quoteID)
 
 	if err != nil {
 		return c.Error(404, err)
@@ -179,13 +172,33 @@ func (v ConversationsResource) QuickieQuote(c buffalo.Context) error {
 	}))
 }
 
+// initialize a quickieRequest object
+func newRequest(c buffalo.Context) *quickieRequest {
+	var rq quickieRequest
+	rq.c = c
+	rq.rqParams = make(map[string]string)
+
+	// ToDo retrieve the filterkey from the session
+
+	if len(filterKey) == 0 {
+		// set encryption key for cookies
+		var err error
+		filterKey, err = uuid.New().MarshalBinary()
+
+		if err != nil {
+			filterKey = []byte("reallyweakkey")
+		}
+	}
+
+	return &rq
+}
+
 func prepareConv(conv models.Conversation, c buffalo.Context) pageParams {
 	var p pageParams
 
 	p.Datestr = time.Now().Format("Mon Jan _2 15:04:05 2006")
 	p.Title = "Quote Wall Quickie"
 
-	p.Conversation = make([]utterancestype, len(conv.Quotes))
 	for _, qt := range conv.Quotes {
 		var utt utterancestype
 		utt.Date = qt.SaidOn.Format("Jan 2, 2006")
@@ -195,69 +208,162 @@ func prepareConv(conv models.Conversation, c buffalo.Context) pageParams {
 	}
 
 	p.QuoteShare = 80 / len(p.Conversation)
+	fmt.Printf("QuoteShare = %d\n", p.QuoteShare)
 
 	return p
 }
 
-func pickQuote(c buffalo.Context, shuffle *ShuffleData) (*uuid.UUID, error) {
+func (rq *quickieRequest) pickQuote() error {
+	// see if there is a "nextQuote" on the request
+	index := rq.nextQuoteCookie()
 
-	index := nextQuoteCookie(c)
-
+	// just give him a random start point
 	if index == 0 {
-		index = rand.Intn(shuffle.Size)
+		index = rand.Intn(curShuffle.Size)
+		var blob nextQuoteBlob
+		blob.NextQuote = index + 1
+		rq.saveNextQuoteCookie(&blob)
 	}
 
 	var sc ShuffledConversations
 	err := models.DB.RawQuery("SELECT * FROM shuffled_conversations WHERE sequence = ?", index).First(&sc)
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	index++
-	if index >= shuffle.Size {
-		index = 0
-	}
-	saveNextQuoteCookie(index, c)
+	rq.quoteID = &sc.ID
 
-	return &sc.ID, err
+	return nil
 }
 
-// Get the shuffle data from the Session
-// If necessary, create the shuffle data and store it
-func getShuffleData(c buffalo.Context) (*ShuffleData, error) {
+func (rq *quickieRequest) chkParams(blob *nextQuoteBlob) error {
+	// go check for any parameters on the request
+	err := rq.checkForFilters()
 
-	shuffle, ok := c.Session().Get(&ShuffleData{}).(*ShuffleData)
+	if err != nil {
+		return err
+	}
+
+	// if no parameters, nothing more for me to do
+	if (len(rq.rqParams) == 0) || !rq.paramsChgd {
+		return nil
+	}
+
+	// let's try to apply the parameters and build a query
+
+	qry := "SELECT s.sequence FROM authors a JOIN quotes q ON a.id = q.author_id JOIN shuffled_conversations s ON q.conversation_id = s.id"
+
+	first := true
+	for _, cond := range rq.rqParams {
+		if first {
+			qry = qry + fmt.Sprintf(" WHERE %s", cond)
+		} else {
+			qry = qry + fmt.Sprintf(" AND %s", cond)
+		}
+		first = false
+	}
+	qry = qry + ";"
+	fmt.Printf("Query = %s\n", qry)
+
+	//var blob nextQuoteBlob
+
+	var filteredConvs []ShuffledConversations
+
+	err = models.DB.RawQuery(qry).All(&filteredConvs)
+
+	if err != nil {
+		return err
+	}
+
+	blob.FilteredList = blob.FilteredList[:0]
+	for _, fil := range filteredConvs {
+		blob.FilteredList = append(blob.FilteredList, fil.Sequence)
+	}
+
+	blob.NextQuote = rand.Intn(len(blob.FilteredList))
+
+	return nil
+}
+
+// I support letting the users apply the following filters:
+// 		max-age=n  			: only pull quotes that happened in the last n days (saved as 'startRange')
+//		before=date	: only pull quotes that happened before specified date
+//		after=date		: only pull quotes that happened after specified date
+//		speaker=name		: only pull quotes that involved the specified speaker
+//								speaker name is in a 'LIKE' clause so partials will match
+//								name of Sha would return both "Shari Freeman" quotes and "Mitesh Shah" quotes
+
+func (rq *quickieRequest) checkForFilters() error {
+	// clear my param map in case it has changed
+	for _, p := range rq.rqParams {
+		rq.rqParams[p] = ""
+	}
+
+	val, ok := rq.checkNumericFilter(ageParam)
+
+	if ok {
+		d, _ := time.ParseDuration(fmt.Sprintf("%dh", val*24))
+		dt := time.Now().Add(-d)
+		rq.rqParams[startRange] = fmt.Sprintf("q.saidon > '%s'", dt.Format("01/02/2006"))
+	}
+
+	hash := sha256.Sum256([]byte(rq.rqParams[startRange] + rq.rqParams[endRange] + rq.rqParams[speaker]))
+
+	if !bytes.Equal(rq.paramsHash, hash[:]) {
+		rq.paramsChgd = true
+		rq.paramsHash = hash[:]
+	}
+
+	return nil
+}
+
+func (rq *quickieRequest) checkNumericFilter(name string) (int, bool) {
+	strVal, ok := rq.c.Request().URL.Query()[name]
+
+	if !ok {
+		return 0, false
+	}
+
+	val, err := strconv.Atoi(strVal[0])
+
+	if err != nil {
+		return 0, false
+	}
+
+	return val, true
+}
+
+var mutex sync.Mutex
+
+// If necessary, create the shuffle data and store it
+func (rq *quickieRequest) getShuffleData() error {
 
 	var err error
+
 	// if the conversation list has never been shuffled, go shuffle it
-	if !ok {
+	if curShuffle == nil {
 		// go create the shuffled table
-		shuffle, err = shuffleConversations()
+		err = rq.shuffleConversations()
+	}
 
-		if err != nil {
-			return nil, err
-		}
-		// ShuffleData likely need to be registered since I couldn't find him
-		gob.Register(&ShuffleData{})
-
-		c.Session().Set(&ShuffleData{}, shuffle)
+	if err != nil {
+		return err
 	}
 
 	//make sure the shuffle happened today
+	mutex.Lock()
+	defer mutex.Unlock()
 
-	if !shuffleCurrent(*shuffle) {
-		mutex.Lock()
-		defer mutex.Unlock()
-		shuffle, err = shuffleConversations()
+	if curShuffle.ShuffledDay.Day() != time.Now().Day() {
+		err = rq.shuffleConversations()
 
 		if err != nil {
-			return nil, err
+			return err
 		}
-		c.Session().Set(&ShuffleData{}, shuffle)
 	}
 
-	return shuffle, nil
+	return err
 }
 
 // Shuffling the conversations is actuall done in a stored procedure.
@@ -272,24 +378,24 @@ type ShuffleDate struct {
 	ObjDescription string `db:"obj_description"`
 }
 
-func shuffleConversations() (*ShuffleData, error) {
+func (rq *quickieRequest) shuffleConversations() error {
 	err := models.DB.RawQuery("SELECT * FROM shuffle_deck();").Exec()
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	count, err := models.DB.Count(models.ShuffledConversation{})
+	count, err := models.DB.Count(ShuffledConversations{})
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	var date ShuffleDate
 	err = models.DB.RawQuery("SELECT OBJ_DESCRIPTION('public.shuffled_conversations'::regclass);").First(&date)
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	date.ObjDescription = strings.Trim(date.ObjDescription, "\"")
@@ -297,43 +403,42 @@ func shuffleConversations() (*ShuffleData, error) {
 	t, err = time.Parse("2006-01-02", date.ObjDescription)
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	var corr *time.Duration
 	corr, err = getDBTimeDiff()
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	shuffle := &ShuffleData{
+	curShuffle = &ShuffleData{
 		Size:        count,
 		ShuffledDay: t,
 		ServCor:     *corr,
 	}
 
-	return shuffle, nil
+	return nil
 }
 
 // check that the shuffle happened today
-func shuffleCurrent(shuffle ShuffleData) bool {
-	tTime := time.Now().UTC().Add(shuffle.ServCor)
+func (rq *quickieRequest) shuffleCurrent() bool {
+	tTime := time.Now().UTC().Add(curShuffle.ServCor)
 
 	// if DOYs match, we're done
-	if tTime.YearDay() == shuffle.ShuffledDay.YearDay() {
+	if tTime.YearDay() == curShuffle.ShuffledDay.YearDay() {
 		return true
 	}
 
 	// did my day change in the last five minutes?
 	fiveMins, _ := time.ParseDuration("-5m")
 
-	if tTime.Add(fiveMins).YearDay() == shuffle.ShuffledDay.YearDay() {
+	if tTime.Add(fiveMins).YearDay() == curShuffle.ShuffledDay.YearDay() {
 		return true
 	}
 
 	// time to re-shuffle!
-	fmt.Println("Calling for a shuffle!")
 	return false
 }
 
@@ -369,21 +474,60 @@ func getDBTimeDiff() (*time.Duration, error) {
 // See if there is a cookie telling me where I am in the shuffled list
 // of quotes.  Returning zero means there is not.
 //
-func nextQuoteCookie(c buffalo.Context) int {
-	cookieBytes, err := c.Cookies().Get(nextQuote)
-
-	if err != nil {
-		return 0
-	}
+// if there is one, return the index he holds
+// and save a new cookie for the next time
+//
+func (rq *quickieRequest) nextQuoteCookie() int {
+	cookieBytes, err := rq.c.Cookies().Get(nextQuote)
 
 	var cookie nextQuoteBlob
-	err = json.Unmarshal([]byte(cookieBytes), &cookie)
+	if err == nil {
+		cookieJSON, err := decrypt(filterKey, cookieBytes)
 
-	if err != nil {
-		return 0
+		if err != nil {
+			return 0
+		}
+
+		err = json.Unmarshal([]byte(cookieJSON), &cookie)
+
+		if err != nil {
+			return 0
+		}
 	}
 
-	return cookie.NextQuote
+	err = rq.chkParams(&cookie)
+
+	if len(cookie.FilteredList) == 0 {
+		return cookie.nextShuffledQuote(rq)
+	}
+
+	return cookie.nextFilteredQuote(rq)
+}
+
+// iterate over the shuffled table and return the index to display
+func (ck *nextQuoteBlob) nextShuffledQuote(rq *quickieRequest) int {
+	ind := ck.NextQuote
+	ck.NextQuote = ck.NextQuote + 1
+
+	if ck.NextQuote >= curShuffle.Size {
+		ck.NextQuote = 0
+	}
+	rq.saveNextQuoteCookie(ck)
+
+	return ind
+}
+
+// iterate over the users filtered list of quotes and return the index to display
+func (ck *nextQuoteBlob) nextFilteredQuote(rq *quickieRequest) int {
+	ind := ck.FilteredList[ck.NextQuote]
+	ck.NextQuote = ck.NextQuote + 1
+
+	if ck.NextQuote >= len(ck.FilteredList) {
+		ck.NextQuote = 0
+	}
+	rq.saveNextQuoteCookie(ck)
+
+	return ind
 }
 
 // saveNextQuoteCookie()
@@ -392,30 +536,25 @@ func nextQuoteCookie(c buffalo.Context) int {
 // middle of it.  This then gets signed and encrypted so it can be safely
 // sent down to the browser.
 //
-func saveNextQuoteCookie(nextIndex int, c buffalo.Context) {
-	fmt.Println("saveNextQuoteCookie!")
-	var tblob nextQuoteBlob
+func (rq *quickieRequest) saveNextQuoteCookie(tblob *nextQuoteBlob) {
 	tblob.FrontJunk = uuid.New().String()
 	tblob.BackJunk = uuid.New().String()
-	tblob.NextQuote = nextIndex
 
-	saveCookie(nextQuote, tblob, c)
+	rq.saveCookie(nextQuote, tblob)
 }
 
-func saveCookie(name string, jdata interface{}, c buffalo.Context) {
+func (rq *quickieRequest) saveCookie(name string, jdata interface{}) {
 	jblob, _ := json.Marshal(jdata)
 
-	value, _ := encrypt(filterkey, jblob)
-	fmt.Printf("c_Value: %s\n", value)
+	value, _ := encrypt(filterKey, jblob)
 	life, _ := time.ParseDuration("3h")
-	c.Cookies().Set(name, value, life)
+	rq.c.Cookies().Set(name, value, life)
 }
 
 // encrypt string to base64 crypto using AES
 func encrypt(key []byte, plaintext []byte) (string, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		fmt.Printf("NewCipher failed! %s\n", err.Error())
 		return "", err
 	}
 
@@ -424,7 +563,6 @@ func encrypt(key []byte, plaintext []byte) (string, error) {
 	iv := ciphertext[:aes.BlockSize]
 	rand.Read(iv)
 	if _, err := io.ReadFull(bytes.NewReader(iv), iv); err != nil {
-		fmt.Println("encrypt reader failed!")
 		return "", err
 	}
 
@@ -482,374 +620,4 @@ func setDefaultQuote(p pageParams) {
 	quotes.Quotearchive.Conversations[0].Conversation[0].Publish = "True"
 	quotes.Quotearchive.Conversations[0].Conversation[0].Quote = "Life isn't about quotes about life."
 	p.Title = "Çá´ÊÉá´nQ llÉM ÇÊonQ"
-}
-
-/*********************************************************************/
-// below here is old stuff
-// acutal
-/*********************************************************************/
-/*********************************************************************/
-/*********************************************************************/
-/*********************************************************************/
-/*********************************************************************/
-/*********************************************************************/
-/*********************************************************************/
-/*********************************************************************/
-/*********************************************************************/
-/*********************************************************************/
-/*********************************************************************/
-/*********************************************************************/
-/*********************************************************************/
-/*********************************************************************/
-/*********************************************************************/
-/*********************************************************************/
-
-// QuoteWallQuickie Put up a random quote, sounds deceptively easy.  But just you wait.
-func QuoteWallQuickie(w http.ResponseWriter, r *http.Request) {
-	var p pageParams
-
-	p.Datestr = time.Now().Format("Mon Jan _2 15:04:05 2006")
-	p.Title = "Quote Wall Quickie"
-
-	err := loadquotedata()
-
-	if err != nil {
-		// couldn't read quote file.  Put up a fill-in quote
-		setDefaultQuote(p)
-	}
-
-	checkShuffle()
-
-	quoteindex, gotQuote := pickquote(w, r, p)
-
-	if !gotQuote {
-		return
-	}
-
-	p.Conversation = make([]utterancestype, len(quotes.Quotearchive.Conversations[quoteindex].Conversation))
-	copy(p.Conversation, quotes.Quotearchive.Conversations[quoteindex].Conversation)
-	p.QuoteShare = 80 / len(p.Conversation)
-
-	templ := template.New("quote wall")
-	templ = template.Must(templ.Parse(quotewallhtml))
-	templ.Execute(w, p)
-}
-
-// pickquote()
-//
-// First, check for a filter, if that results in a list, pick from the list.
-// Second, check for a next quote cookie.  If there is one, return that quote.
-//
-func pickquote(w http.ResponseWriter, r *http.Request, page pageParams) (index int, ValidQuote bool) {
-	// Check for a current max quote age filter
-	/*
-		filteredList, gotFilter := maxAgeFilter(r)
-
-		// there is a filter, go pick from it
-		if gotFilter {
-			index, ValidQuote = pickFromFilterList(filteredList, w, page)
-			return
-		}
-
-		// if there isn't a filter in place, check for a next quote cookie
-
-		//cookievalue, gotNextQuote := nextQuoteCookie(r)
-		size := len(shuffled)
-
-		if !gotNextQuote {
-			cookievalue = rand.Intn(size)
-		}
-
-		// put down some boundry checking
-
-		if cookievalue < 0 || cookievalue >= size {
-			cookievalue = 0 // cookie had junk in it, start over
-		}
-
-		// go pick a quote, skipping the ones that are to remain "unpublished"
-
-		for ; strings.Compare(quotes.Quotearchive.Conversations[shuffled[cookievalue]].Conversation[0].Publish, "False") == 0; cookievalue++ {
-			skips = skips + 1
-
-			// put down some boundry checking
-
-			if cookievalue >= size {
-				cookievalue = 0 // reached the end of the array, start over
-			}
-		}
-
-		saveNextQuoteCookie(cookievalue+1, w)
-
-		return shuffled[cookievalue], true*/
-	return 0, false
-}
-
-// pickFromFilterList()
-//
-// If I have a filtered list, pick the next entry in the list to display.
-//
-func pickFromFilterList(curList filteredlist, w http.ResponseWriter, page pageParams) (index int, validQuote bool) {
-	// if he put on a filter that results in no quotes
-	// that is a special case.  I need to display something to the user
-	// that communicates that the filter criteria eliminates all quotes.
-	if len(curList.List) == 0 {
-		page.ErrorMsg = "No quotes meet criteria."
-		templ := template.New("quote error")
-		templ = template.Must(templ.Parse(errorhtml))
-		templ.Execute(w, page)
-		http.Error(w, "No data returned. - 204", http.StatusNoContent)
-
-		return 0, false
-	}
-
-	// At this point I have been asked for a filtered list and have created one
-	// return the next quote, bump the iterator and save the filter cookie
-
-	index = curList.List[curList.Iterator]
-	curList.Iterator = curList.Iterator + 1
-
-	if curList.Iterator >= len(curList.List) {
-		curList.Iterator = 0
-	}
-	saveFilter(curList, w)
-
-	return index, true
-}
-
-// maxAgeFilter()
-//
-// Retrieves the passed values for the max-age parameter and the
-// currently active filter.  If there is a mis-match, the filtered
-// list *may* have to be recalculated.  If all goes happily, the
-// final list of filtered quotes, with the iterator pointing at
-// the next one to display.
-//
-func maxAgeFilter(r *http.Request) (newlist filteredlist, valid bool) {
-	//newlist.Iterator = 0
-	valid = false
-
-	// go see if user specified a "maximum age" for quotes
-
-	maxdays, ok := maxAgeParam(r)
-
-	if !ok {
-		return newlist, false
-	}
-
-	// okay, we now have a filter turned on, was it already in place?
-
-	newlist, valid = filterCookie(r)
-
-	if !valid {
-		// no list stored in a cookie, need to create it
-		return applyAgeFilter(shuffled, maxdays), true
-	}
-
-	// make sure the current parameter matches the saved cookie
-
-	if newlist.DaysOld != maxdays {
-		// they don't, build a new list
-		return applyAgeFilter(shuffled, maxdays), true
-	}
-
-	// list is good, go with it
-
-	return newlist, true
-}
-
-// maxAgeParam()
-//
-// See if the request for a quote had max-age parameter
-//
-func maxAgeParam(r *http.Request) (maxdays int, valid bool) {
-	maxage, found := r.URL.Query()["max-age"]
-
-	if !found {
-		return 0, false
-	}
-
-	var err error
-	maxdays, err = strconv.Atoi(maxage[0])
-
-	if err != nil {
-		return 0, false
-	}
-
-	if maxdays < 0 {
-		return 0, true
-	}
-
-	return maxdays, true
-}
-
-// filterCookie()
-//
-// Check the incoming http request and see if it has a filter in place already
-// if it does, I create a filteredlist structure and return it.
-//
-func filterCookie(r *http.Request) (activefilter filteredlist, valid bool) {
-	tintf, err := getCookie(r, filtercookie)
-
-	// I'm cheating a little here.  Elsewhere I create and save an empty
-	// cookie with an expired lifetime so the browser will delete my old
-	// cookies.  It is possible for one of them to come back, but I don't
-	// check for that case.  Instead, I rely on the fact that such a cookie
-	// will not decrypt correctly, no hash at the end, so it will be caught
-	// in getCookie() function.  BTW, if you ever change this code to encrypt the
-	// empty cookie, the decrpt will pass, but the json unmarshal will fail.
-	// Unless you convert the cookie to contain empty json, in which case,
-	// you're being wierd.
-
-	if err != nil {
-		return activefilter, false
-	}
-
-	err = json.Unmarshal([]byte(tintf), &activefilter)
-
-	if err != nil {
-		return activefilter, false
-	}
-
-	return activefilter, true
-}
-
-func getCookie(r *http.Request, name string) (newdata string, err error) {
-	tdata, err := r.Cookie(name)
-
-	if err != nil {
-		return newdata, err
-	}
-
-	newdata, err = decrypt(filterkey, tdata.Value)
-
-	if err != nil {
-		return newdata, err
-	}
-
-	return newdata, err
-}
-
-// applyAgeFilter()
-//
-// Given the input list of quotes, role through and pull out all that meet
-// the max days old value.
-//
-func applyAgeFilter(initList []int, maxdays int) (newlist filteredlist) {
-	cutoff := time.Now().AddDate(0, 0, 0-maxdays)
-	newlist.Iterator = 0
-	newlist.DaysOld = maxdays
-	for i := 0; i < len(initList); i++ {
-		date, err := time.Parse("1/2/2006", quotes.Quotearchive.Conversations[initList[i]].Conversation[0].Date)
-		if err == nil {
-			if date.Sub(cutoff) >= 0 && strings.Compare(quotes.Quotearchive.Conversations[initList[i]].Conversation[0].Publish, "True") == 0 {
-				newlist.List = append(newlist.List, initList[i])
-			}
-		}
-	}
-
-	// shuffle the filtered list
-
-	j := len(newlist.List)
-	for i := 0; i < j; i++ {
-		a := rand.Intn(j)
-		b := rand.Intn(j)
-
-		newlist.List[a], newlist.List[b] = newlist.List[b], newlist.List[a]
-	}
-
-	return
-}
-
-// saveFilter()
-//
-// Converts the filteredlist into json, then bakes it into a cookie to send
-// down to the client.
-//
-func saveFilter(newlist filteredlist, w http.ResponseWriter) {
-	sf := new(http.Cookie)
-	sf.Name = filtercookie
-	jvalB, _ := json.Marshal(newlist)
-	sf.Value, _ = encrypt(filterkey, jvalB)
-	http.SetCookie(w, sf)
-}
-
-// clearFilterCookie()
-//
-// I create an empty cookie and send it down to the client in the hope
-// that the receiving browser will only the MaxAge value and delete
-// it from the cookie store.  Even if it doesn't work, I can sleep
-// well knowing I tried.
-//
-func clearFilterCookie(w http.ResponseWriter) {
-	sf := new(http.Cookie)
-	sf.Name = filtercookie
-	sf.Value = "empty"
-	sf.MaxAge = -1
-	http.SetCookie(w, sf)
-}
-
-// loadquotedata()
-//
-// Checks to see if the datafile on the file system has a new date/time stamp
-// than it did when I last read it.  If it does, then I *attempt* to read it
-// into memory and convert it into an array of quotes.
-//
-func loadquotedata() error {
-
-	return nil
-}
-
-var mutex sync.Mutex
-
-// checkShuffle()
-//
-// I re-shuffle the quotes once a day just to make it interesting.
-func checkShuffle() {
-	if shuffledday.Day() != time.Now().Day() {
-		mutex.Lock()
-		defer mutex.Unlock()
-
-		shuffle(len(quotes.Quotearchive.Conversations))
-		shuffledday = time.Now()
-
-		var err error
-		filterkey, err = uuid.New().MarshalBinary()
-
-		if err != nil {
-			filterkey = []byte("reallyweakkey")
-		}
-	}
-}
-
-// shuffle()
-//
-// Rather than use rand to generate a random index into the array of quotes,
-// I'm going to treat the quote array like a deck of cards.  By creating and
-// array of indexs, that starts out sequientially, and then randomly swapping
-// elements in the index array.  I can then just step through the array item
-// by item display the quote whose index is in the shuffled index. For the
-// computer science fans in the room, this is called a Fisher-Yates Shuffle.
-//
-// Doing so means that if you sit on the web page long enough, you will eventually
-// cycle through all of the quotes, but in a random order.  And that no quote
-// will display twice, until you have seen all the quotes.
-//
-// Also, I re-shuffle the quotes everytime the quote file is re-loaded.
-// Generally, re-loading the quotes file happens when quotes are added.
-//
-func shuffle(size int) {
-	shuffled = make([]int, size)
-
-	for i := 0; i < size; i++ {
-		shuffled[i] = i
-	}
-
-	rand.Seed(int64(time.Now().Nanosecond()))
-
-	for i := 0; i < 10000; i++ {
-		a := rand.Intn(size)
-		b := rand.Intn(size)
-
-		shuffled[a], shuffled[b] = shuffled[b], shuffled[a]
-	}
 }

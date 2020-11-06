@@ -1,7 +1,12 @@
 package actions
 
+import "net/http"
+
 func (as *ActionSuite) Test_QuotesResource_List() {
-	//as.Fail("Not Implemented!")
+	res := as.HTML("/conversations/").Get()
+
+	as.Equal(http.StatusOK, res.Code)
+	as.Contains(res.Body.String(), "Welcome to the Quote Archive")
 }
 
 func (as *ActionSuite) Test_QuotesResource_Show() {

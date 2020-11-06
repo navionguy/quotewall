@@ -112,6 +112,8 @@ func defaultCookieStore(opts buffalo.Options) sessions.Store {
 	if secret == "" {
 		opts.Logger.Warn("Unless you set SESSION_SECRET env variable, your session storage is not protected!")
 	}
+
+	// setup the cookie store, with encryption
 	cookieStore := sessions.NewCookieStore([]byte(secret))
 	// SameSite field values: strict=3, Lax=2, None=4, Default=1.
 	cookieStore.Options.SameSite = 3
