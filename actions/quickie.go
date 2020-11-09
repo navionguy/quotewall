@@ -42,6 +42,7 @@ const quotewallhtml = `<!DOCTYPE html><html lang="en">
 <tr><td ALIGN="CENTER"><p style="font-size:64px; height:{{$height}}%">{{.Quote}}</p></td></tr><tr><td/>
 </tr><tr><td ALIGN="RIGHT"><font color="blue">{{.Name}}</font></td></tr>
 <tr><td ALIGN="RIGHT"><font color="blue">{{.Date}}</font></td></tr>
+<tr><td ALIGN="CENTER"><font color="red">{{.Comment}}</font></td></tr>
 {{end}}
 </table></td></tr>
 </div></body></html>`
@@ -68,15 +69,16 @@ const speaker = "speaker"  // only pull quotes that involved the specified speak
 var sdft time.Time // date time stamp of quote file I'm using
 
 //Utterancestype --
-type utterancestype struct {
+type quoteType struct {
 	Name    string
 	Quote   string
 	Date    string
 	Publish string
+	Comment string
 }
 
 type conversationtype struct {
-	Conversation []utterancestype
+	Conversation []quoteType
 }
 
 type archivedatatype struct {
@@ -91,7 +93,7 @@ type pageParams struct {
 	Datestr      string
 	Title        string
 	QuoteShare   int
-	Conversation []utterancestype
+	Conversation []quoteType
 	ErrorMsg     string
 }
 
@@ -104,10 +106,8 @@ var skips int // counter of how many times I hit quotes I shouldn't display
 // the next quote to display
 
 const nextQuote = "NextQuote"
-const filtercookie = "FilteredList"
-const nextquoteoffset = 16
 
-type nextQuoteBlob struct {
+type cookieBlob struct {
 	FrontJunk    string
 	NextQuote    int
 	FilteredList []int
@@ -200,15 +200,17 @@ func prepareConv(conv models.Conversation, c buffalo.Context) pageParams {
 	p.Title = "Quote Wall Quickie"
 
 	for _, qt := range conv.Quotes {
-		var utt utterancestype
+		var utt quoteType
 		utt.Date = qt.SaidOn.Format("Jan 2, 2006")
 		utt.Name = qt.Author.Name
 		utt.Quote = qt.Phrase
+		if qt.Annotation != nil {
+			utt.Comment = qt.Annotation.Note
+		}
 		p.Conversation = append(p.Conversation, utt)
 	}
 
 	p.QuoteShare = 80 / len(p.Conversation)
-	fmt.Printf("QuoteShare = %d\n", p.QuoteShare)
 
 	return p
 }
@@ -220,8 +222,9 @@ func (rq *quickieRequest) pickQuote() error {
 	// just give him a random start point
 	if index == 0 {
 		index = rand.Intn(curShuffle.Size)
-		var blob nextQuoteBlob
+		var blob cookieBlob
 		blob.NextQuote = index + 1
+		copy(blob.ParamHash, rq.paramsHash)
 		rq.saveNextQuoteCookie(&blob)
 	}
 
@@ -237,7 +240,7 @@ func (rq *quickieRequest) pickQuote() error {
 	return nil
 }
 
-func (rq *quickieRequest) chkParams(blob *nextQuoteBlob) error {
+func (rq *quickieRequest) chkParams(blob *cookieBlob) error {
 	// go check for any parameters on the request
 	err := rq.checkForFilters()
 
@@ -249,6 +252,7 @@ func (rq *quickieRequest) chkParams(blob *nextQuoteBlob) error {
 	if (len(rq.rqParams) == 0) || !rq.paramsChgd {
 		return nil
 	}
+	rq.paramsChgd = false
 
 	// let's try to apply the parameters and build a query
 
@@ -264,9 +268,8 @@ func (rq *quickieRequest) chkParams(blob *nextQuoteBlob) error {
 		first = false
 	}
 	qry = qry + ";"
-	fmt.Printf("Query = %s\n", qry)
 
-	//var blob nextQuoteBlob
+	//var blob cookieBlob
 
 	var filteredConvs []ShuffledConversations
 
@@ -310,9 +313,10 @@ func (rq *quickieRequest) checkForFilters() error {
 
 	hash := sha256.Sum256([]byte(rq.rqParams[startRange] + rq.rqParams[endRange] + rq.rqParams[speaker]))
 
-	if !bytes.Equal(rq.paramsHash, hash[:]) {
+	if !bytes.Equal(rq.paramsHash, hash[0:]) {
 		rq.paramsChgd = true
-		rq.paramsHash = hash[:]
+		rq.paramsHash = make([]byte, len(hash))
+		copy(rq.paramsHash, hash[0:])
 	}
 
 	return nil
@@ -480,19 +484,18 @@ func getDBTimeDiff() (*time.Duration, error) {
 func (rq *quickieRequest) nextQuoteCookie() int {
 	cookieBytes, err := rq.c.Cookies().Get(nextQuote)
 
-	var cookie nextQuoteBlob
+	var cookie cookieBlob
+	var cookieJSON string
 	if err == nil {
-		cookieJSON, err := decrypt(filterKey, cookieBytes)
-
-		if err != nil {
-			return 0
-		}
-
+		cookieJSON, err = decrypt(filterKey, cookieBytes)
+	}
+	if err == nil {
 		err = json.Unmarshal([]byte(cookieJSON), &cookie)
+	}
 
-		if err != nil {
-			return 0
-		}
+	if err == nil {
+		rq.paramsHash = make([]byte, len(cookie.ParamHash))
+		copy(rq.paramsHash, cookie.ParamHash)
 	}
 
 	err = rq.chkParams(&cookie)
@@ -505,7 +508,7 @@ func (rq *quickieRequest) nextQuoteCookie() int {
 }
 
 // iterate over the shuffled table and return the index to display
-func (ck *nextQuoteBlob) nextShuffledQuote(rq *quickieRequest) int {
+func (ck *cookieBlob) nextShuffledQuote(rq *quickieRequest) int {
 	ind := ck.NextQuote
 	ck.NextQuote = ck.NextQuote + 1
 
@@ -518,7 +521,7 @@ func (ck *nextQuoteBlob) nextShuffledQuote(rq *quickieRequest) int {
 }
 
 // iterate over the users filtered list of quotes and return the index to display
-func (ck *nextQuoteBlob) nextFilteredQuote(rq *quickieRequest) int {
+func (ck *cookieBlob) nextFilteredQuote(rq *quickieRequest) int {
 	ind := ck.FilteredList[ck.NextQuote]
 	ck.NextQuote = ck.NextQuote + 1
 
@@ -536,9 +539,12 @@ func (ck *nextQuoteBlob) nextFilteredQuote(rq *quickieRequest) int {
 // middle of it.  This then gets signed and encrypted so it can be safely
 // sent down to the browser.
 //
-func (rq *quickieRequest) saveNextQuoteCookie(tblob *nextQuoteBlob) {
+func (rq *quickieRequest) saveNextQuoteCookie(tblob *cookieBlob) {
 	tblob.FrontJunk = uuid.New().String()
 	tblob.BackJunk = uuid.New().String()
+
+	tblob.ParamHash = make([]byte, len(rq.paramsHash))
+	copy(tblob.ParamHash, rq.paramsHash)
 
 	rq.saveCookie(nextQuote, tblob)
 }
@@ -608,13 +614,13 @@ func decrypt(key []byte, cryptoText string) (string, error) {
 	return fmt.Sprintf("%s", ciphertext[:len(ciphertext)-crypto.SHA256.Size()]), nil
 }
 
-// SetDefaultQuote()
+// setDefaultConversation()
 //
 // If the file won't load, I still want to have something to show
 //
-func setDefaultQuote(p pageParams) {
+func setDefaultConversation(p pageParams) {
 	quotes.Quotearchive.Conversations = make([]conversationtype, 1)
-	quotes.Quotearchive.Conversations[0].Conversation = make([]utterancestype, 1)
+	quotes.Quotearchive.Conversations[0].Conversation = make([]quoteType, 1)
 	quotes.Quotearchive.Conversations[0].Conversation[0].Date = ""
 	quotes.Quotearchive.Conversations[0].Conversation[0].Name = "Unknown"
 	quotes.Quotearchive.Conversations[0].Conversation[0].Publish = "True"

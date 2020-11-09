@@ -30,7 +30,7 @@ func (as *ActionSuite) Test_SaveNextCookieQuote() {
 
 func Test_setDefaultQuote(t *testing.T) {
 	var p pageParams
-	setDefaultQuote(p)
+	setDefaultConversation(p)
 
 	if strings.Compare(quotes.Quotearchive.Conversations[0].Conversation[0].Quote, "Life isn't about quotes about life.") != 0 {
 		t.Fatal("setDefaultQuote didn't!")
