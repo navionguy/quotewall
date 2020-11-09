@@ -30,7 +30,7 @@ const quotewallhtml = `<!DOCTYPE html><html lang="en">
 <meta name="dcterms.created" content="{{.Datestr}}">
 <meta name="description" content="">
 <meta name="keywords" content="">
-<meta http-equiv="refresh" content="10" />
+<meta http-equiv="refresh" content="{{.Refresh}}" />
 <title>{{.Title}}</title>
 <h1><div align="center">{{.Title}}</div></h1>
 </head>
@@ -94,7 +94,7 @@ type pageParams struct {
 	Title        string
 	QuoteShare   int
 	Conversation []quoteType
-	ErrorMsg     string
+	Refresh      string
 }
 
 type filterSet map[string]string
@@ -155,6 +155,17 @@ func (v ConversationsResource) QuickieQuote(c buffalo.Context) error {
 		return c.Error(404, err)
 	}
 
+	if rq.quoteID == nil {
+		// no quotes found
+		page := setDefaultConversation()
+		templ := template.New("quote wall")
+		templ = template.Must((templ.Parse((quotewallhtml))))
+
+		return c.Render(200, render.Func("html", func(w io.Writer, d render.Data) error {
+			return templ.Execute(w, page)
+		}))
+	}
+
 	conv := models.Conversation{}
 	err = models.DB.Eager("Quotes.Conversation").Eager("Quotes").Eager("Quotes.Author").Eager("Quotes.Annotation").Find(&conv, rq.quoteID)
 
@@ -211,6 +222,7 @@ func prepareConv(conv models.Conversation, c buffalo.Context) pageParams {
 	}
 
 	p.QuoteShare = 80 / len(p.Conversation)
+	p.Refresh = "10"
 
 	return p
 }
@@ -218,6 +230,12 @@ func prepareConv(conv models.Conversation, c buffalo.Context) pageParams {
 func (rq *quickieRequest) pickQuote() error {
 	// see if there is a "nextQuote" on the request
 	index := rq.nextQuoteCookie()
+
+	// check to see if no quote found
+	if index == -1 {
+		rq.quoteID = nil
+		return nil
+	}
 
 	// just give him a random start point
 	if index == 0 {
@@ -242,16 +260,13 @@ func (rq *quickieRequest) pickQuote() error {
 
 func (rq *quickieRequest) chkParams(blob *cookieBlob) error {
 	// go check for any parameters on the request
-	err := rq.checkForFilters()
-
-	if err != nil {
-		return err
-	}
+	rq.checkForFilters()
 
 	// if no parameters, nothing more for me to do
 	if (len(rq.rqParams) == 0) || !rq.paramsChgd {
 		return nil
 	}
+
 	rq.paramsChgd = false
 
 	// let's try to apply the parameters and build a query
@@ -272,6 +287,18 @@ func (rq *quickieRequest) chkParams(blob *cookieBlob) error {
 	//var blob cookieBlob
 
 	var filteredConvs []ShuffledConversations
+
+	// make sure I have some quotes
+
+	ct, err := models.DB.RawQuery(qry).Count(&filteredConvs)
+
+	if err != nil {
+		blob.FilteredList = blob.FilteredList[:0]
+		return nil
+	}
+	if ct == 0 {
+		return nil
+	}
 
 	err = models.DB.RawQuery(qry).All(&filteredConvs)
 
@@ -297,18 +324,41 @@ func (rq *quickieRequest) chkParams(blob *cookieBlob) error {
 //								speaker name is in a 'LIKE' clause so partials will match
 //								name of Sha would return both "Shari Freeman" quotes and "Mitesh Shah" quotes
 
-func (rq *quickieRequest) checkForFilters() error {
+func (rq *quickieRequest) checkForFilters() {
 	// clear my param map in case it has changed
 	for _, p := range rq.rqParams {
 		rq.rqParams[p] = ""
 	}
 
+	// check for the max-age parameter
 	val, ok := rq.checkNumericFilter(ageParam)
 
 	if ok {
 		d, _ := time.ParseDuration(fmt.Sprintf("%dh", val*24))
 		dt := time.Now().Add(-d)
 		rq.rqParams[startRange] = fmt.Sprintf("q.saidon > '%s'", dt.Format("01/02/2006"))
+	}
+
+	// check for after param
+
+	start, ok := rq.checkDateFilter(startRange)
+	if ok {
+		rq.rqParams[startRange] = fmt.Sprintf("q.saidon > '%s'", start)
+	}
+
+	// check for before param
+
+	stop, ok := rq.checkDateFilter(endRange)
+	if ok {
+		rq.rqParams[endRange] = fmt.Sprintf("q.saidon < '%s'", stop)
+	}
+
+	// check for speaker param
+
+	spkr, ok := rq.checkStringFilter(speaker)
+
+	if ok {
+		rq.rqParams[speaker] = "a.name LIKE '%" + spkr + "%'"
 	}
 
 	hash := sha256.Sum256([]byte(rq.rqParams[startRange] + rq.rqParams[endRange] + rq.rqParams[speaker]))
@@ -318,10 +368,40 @@ func (rq *quickieRequest) checkForFilters() error {
 		rq.paramsHash = make([]byte, len(hash))
 		copy(rq.paramsHash, hash[0:])
 	}
-
-	return nil
 }
 
+// check for a string filter
+func (rq *quickieRequest) checkStringFilter(name string) (string, bool) {
+	strVal, ok := rq.c.Request().URL.Query()[name]
+
+	if !ok {
+		// didn't find filter by name
+		return "", false
+	}
+
+	return strVal[0], true
+}
+
+// filter value should be a date
+func (rq *quickieRequest) checkDateFilter(name string) (string, bool) {
+	strVal, ok := rq.c.Request().URL.Query()[name]
+
+	if !ok {
+		// didn't find the parameter by name
+		return "", false
+	}
+
+	_, err := time.Parse("01/02/2006", strVal[0])
+
+	if err != nil {
+		// couldn't parse it, ignore it
+		return "", false
+	}
+
+	return strVal[0], true
+}
+
+// filter value is expected to be an integer
 func (rq *quickieRequest) checkNumericFilter(name string) (int, bool) {
 	strVal, ok := rq.c.Request().URL.Query()[name]
 
@@ -500,7 +580,7 @@ func (rq *quickieRequest) nextQuoteCookie() int {
 
 	err = rq.chkParams(&cookie)
 
-	if len(cookie.FilteredList) == 0 {
+	if len(rq.rqParams) == 0 {
 		return cookie.nextShuffledQuote(rq)
 	}
 
@@ -522,6 +602,9 @@ func (ck *cookieBlob) nextShuffledQuote(rq *quickieRequest) int {
 
 // iterate over the users filtered list of quotes and return the index to display
 func (ck *cookieBlob) nextFilteredQuote(rq *quickieRequest) int {
+	if len(ck.FilteredList) == 0 {
+		return -1
+	}
 	ind := ck.FilteredList[ck.NextQuote]
 	ck.NextQuote = ck.NextQuote + 1
 
@@ -618,12 +701,20 @@ func decrypt(key []byte, cryptoText string) (string, error) {
 //
 // If the file won't load, I still want to have something to show
 //
-func setDefaultConversation(p pageParams) {
-	quotes.Quotearchive.Conversations = make([]conversationtype, 1)
-	quotes.Quotearchive.Conversations[0].Conversation = make([]quoteType, 1)
-	quotes.Quotearchive.Conversations[0].Conversation[0].Date = ""
-	quotes.Quotearchive.Conversations[0].Conversation[0].Name = "Unknown"
-	quotes.Quotearchive.Conversations[0].Conversation[0].Publish = "True"
-	quotes.Quotearchive.Conversations[0].Conversation[0].Quote = "Life isn't about quotes about life."
-	p.Title = "Çá´ÊÉá´nQ llÉM ÇÊonQ"
+func setDefaultConversation() *pageParams {
+	qt := quoteType{
+		Name:    "Unknown",
+		Publish: "True",
+		Quote:   "Life isn't about quotes about life.",
+	}
+	p := &pageParams{
+		Datestr:    "",
+		Title:      "No quotes on that wall!",
+		QuoteShare: 80,
+		Refresh:    "300",
+	}
+
+	p.Conversation = append(p.Conversation, qt)
+
+	return p
 }
