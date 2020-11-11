@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"net/http"
 	"strings"
 	"testing"
 
@@ -23,16 +24,46 @@ func (tc testContext) Cookies() *buffalo.Cookies {
 	return &tck
 }
 
-func (as *ActionSuite) Test_SaveNextCookieQuote() {
-	as.HTML("/conversations/quickie?max-age=550").Get()
+func (as *ActionSuite) Test_QuickieBeforeDate() {
+	res := as.HTML("/conversations/quickie?before=03/15/1997").Get()
+
+	as.Equal(http.StatusOK, res.Code)
+	as.Contains(res.Body.String(), "see us ever needing to change the product")
 
 }
 
-func Test_setDefaultQuote(t *testing.T) {
-	var p pageParams
-	setDefaultConversation(p)
+func (as *ActionSuite) Test_QuickieAfterDate() {
+	res := as.HTML("/conversations/quickie?after=06/24/2019").Get()
 
-	if strings.Compare(quotes.Quotearchive.Conversations[0].Conversation[0].Quote, "Life isn't about quotes about life.") != 0 {
+	as.Equal(http.StatusOK, res.Code)
+	as.Contains(res.Body.String(), "Chris is wearing pants!")
+}
+
+func (as *ActionSuite) Test_BadQuickieAfterDate() {
+	res := as.HTML("/conversations/quickie?after=FRED").Get()
+
+	as.Equal(http.StatusOK, res.Code)
+	as.Contains(res.Body.String(), "Quote Wall Quickie")
+}
+
+func (as *ActionSuite) Test_QuickieSpeaker() {
+	res := as.HTML("/conversations/quickie?speaker=Freeman").Get()
+
+	as.Equal(http.StatusOK, res.Code)
+	as.Contains(res.Body.String(), "Shari Freeman")
+}
+
+func (as *ActionSuite) Test_QuickieAnnotation() {
+	res := as.HTML("/conversations/quickie?after=03/20/2019&before=03/22/2019").Get()
+
+	as.Equal(http.StatusOK, res.Code)
+	as.Contains(res.Body.String(), "First timer!")
+}
+
+func Test_setDefaultQuote(t *testing.T) {
+	p := setDefaultConversation()
+
+	if strings.Compare(p.Conversation[0].Quote, "Life isn't about quotes about life.") != 0 {
 		t.Fatal("setDefaultQuote didn't!")
 	}
 }

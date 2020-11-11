@@ -139,6 +139,9 @@ type quickieRequest struct {
 var curShuffle *ShuffleData
 var filterKey []byte
 
+// localhost:3000/conversations/quickie?after=03/20/2019&before=03/22/2019
+// localhost:3000/conversations/quickie?before=03/22/1999
+
 // QuickieQuote displays a random quote
 func (v ConversationsResource) QuickieQuote(c buffalo.Context) error {
 	rq := newRequest(c)
@@ -288,27 +291,20 @@ func (rq *quickieRequest) chkParams(blob *cookieBlob) error {
 
 	var filteredConvs []ShuffledConversations
 
-	// make sure I have some quotes
-
-	ct, err := models.DB.RawQuery(qry).Count(&filteredConvs)
+	err := models.DB.RawQuery(qry).All(&filteredConvs)
 
 	if err != nil {
 		blob.FilteredList = blob.FilteredList[:0]
-		return nil
-	}
-	if ct == 0 {
-		return nil
-	}
-
-	err = models.DB.RawQuery(qry).All(&filteredConvs)
-
-	if err != nil {
 		return err
 	}
 
 	blob.FilteredList = blob.FilteredList[:0]
 	for _, fil := range filteredConvs {
 		blob.FilteredList = append(blob.FilteredList, fil.Sequence)
+	}
+
+	if len(blob.FilteredList) == 0 {
+		return nil
 	}
 
 	blob.NextQuote = rand.Intn(len(blob.FilteredList))
@@ -318,8 +314,8 @@ func (rq *quickieRequest) chkParams(blob *cookieBlob) error {
 
 // I support letting the users apply the following filters:
 // 		max-age=n  			: only pull quotes that happened in the last n days (saved as 'startRange')
-//		before=date	: only pull quotes that happened before specified date
-//		after=date		: only pull quotes that happened after specified date
+//		before=date			: only pull quotes that happened before specified date
+//		after=date			: only pull quotes that happened after specified date
 //		speaker=name		: only pull quotes that involved the specified speaker
 //								speaker name is in a 'LIKE' clause so partials will match
 //								name of Sha would return both "Shari Freeman" quotes and "Mitesh Shah" quotes
@@ -602,6 +598,7 @@ func (ck *cookieBlob) nextShuffledQuote(rq *quickieRequest) int {
 
 // iterate over the users filtered list of quotes and return the index to display
 func (ck *cookieBlob) nextFilteredQuote(rq *quickieRequest) int {
+	fmt.Printf("length of filtered list %d\n", len(ck.FilteredList))
 	if len(ck.FilteredList) == 0 {
 		return -1
 	}
