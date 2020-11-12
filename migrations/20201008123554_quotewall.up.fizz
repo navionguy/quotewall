@@ -73,6 +73,9 @@ BEGIN
 END;
 $$ language 'plpgsql' STRICT;")
 
+exec("echo create extension uuid-ossp")
+raw(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`)
+
 exec("echo create function shuffle_deck")
 sql ("
 

@@ -2,8 +2,8 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 10.11
--- Dumped by pg_dump version 10.11
+-- Dumped from database version 10.13
+-- Dumped by pg_dump version 10.13
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -28,6 +28,20 @@ CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
 --
 
 COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
+
+
+--
+-- Name: uuid-ossp; Type: EXTENSION; Schema: -; Owner: 
+--
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
+
+
+--
+-- Name: EXTENSION "uuid-ossp"; Type: COMMENT; Schema: -; Owner: 
+--
+
+COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
 
 
 --
@@ -67,15 +81,16 @@ BEGIN
     END IF;    
 
     CREATE TABLE shuffled_conversations (
-        sequence        integer NOT NULL PRIMARY KEY,
-        conversation_ID uuid NOT NULL
+        id              uuid NOT NULL,
+        sequence        integer NOT NULL PRIMARY KEY
     );
     ALTER TABLE shuffled_conversations
-        ADD CONSTRAINT conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+        ADD CONSTRAINT id_fkey FOREIGN KEY (id) REFERENCES public.conversations(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
-    keys := ARRAY(SELECT id FROM conversations);    /* load up all the conversation ID values */
-    i := 0;                                         /* rolls over the entire array doing the shuffle */
-    max_rec := array_length(keys,1);                /* get number of conversations in the array */
+    keys := ARRAY(SELECT id FROM conversations
+                        WHERE publish = TRUE);    /* load up all the published conversation ID values */
+    i := 0;                                       /* rolls over the entire array doing the shuffle */
+    max_rec := array_length(keys,1);              /* get number of conversations in the array */
 
     LOOP
         i := i + 1; /* move forward, there is no 0 element */
@@ -86,7 +101,7 @@ BEGIN
         /* by the time I'm done, the Keys array is trashed, don't try to use it */
 
         j := pick_from_range(i,max_rec);    
-        INSERT INTO shuffled_conversations( sequence, conversation_ID) VALUES( i, keys[j] );
+        INSERT INTO shuffled_conversations( sequence, ID) VALUES( i, keys[j] );
         keys[j] := keys[i];
 
         EXIT WHEN i = max_rec;
@@ -101,7 +116,7 @@ BEGIN
     
     /* tag this run of the record shuffle */
     keys[1] := (SELECT uuid_generate_v4());
-    EXECUTE FORMAT('COMMENT ON COLUMN shuffled_conversations.conversation_id IS ''%I''', keys[1]);
+    EXECUTE FORMAT('COMMENT ON COLUMN shuffled_conversations.id IS ''%I''', keys[1]);
     
     RETURN max_rec;
 END

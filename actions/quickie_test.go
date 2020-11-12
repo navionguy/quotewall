@@ -25,7 +25,7 @@ func (tc testContext) Cookies() *buffalo.Cookies {
 }
 
 func (as *ActionSuite) Test_QuickieBeforeDate() {
-	res := as.HTML("/conversations/quickie?before=03/15/1997").Get()
+	res := as.HTML("/quickie?before=03/15/1997").Get()
 
 	as.Equal(http.StatusOK, res.Code)
 	as.Contains(res.Body.String(), "see us ever needing to change the product")
@@ -33,28 +33,28 @@ func (as *ActionSuite) Test_QuickieBeforeDate() {
 }
 
 func (as *ActionSuite) Test_QuickieAfterDate() {
-	res := as.HTML("/conversations/quickie?after=06/24/2019").Get()
+	res := as.HTML("/quickie?after=06/24/2019").Get()
 
 	as.Equal(http.StatusOK, res.Code)
 	as.Contains(res.Body.String(), "Chris is wearing pants!")
 }
 
 func (as *ActionSuite) Test_BadQuickieAfterDate() {
-	res := as.HTML("/conversations/quickie?after=FRED").Get()
+	res := as.HTML("/quickie?after=FRED").Get()
 
 	as.Equal(http.StatusOK, res.Code)
 	as.Contains(res.Body.String(), "Quote Wall Quickie")
 }
 
 func (as *ActionSuite) Test_QuickieSpeaker() {
-	res := as.HTML("/conversations/quickie?speaker=Freeman").Get()
+	res := as.HTML("/quickie?speaker=Freeman").Get()
 
 	as.Equal(http.StatusOK, res.Code)
 	as.Contains(res.Body.String(), "Shari Freeman")
 }
 
 func (as *ActionSuite) Test_QuickieAnnotation() {
-	res := as.HTML("/conversations/quickie?after=03/20/2019&before=03/22/2019").Get()
+	res := as.HTML("/quickie?after=03/20/2019&before=03/22/2019").Get()
 
 	as.Equal(http.StatusOK, res.Code)
 	as.Contains(res.Body.String(), "First timer!")

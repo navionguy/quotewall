@@ -139,8 +139,9 @@ type quickieRequest struct {
 var curShuffle *ShuffleData
 var filterKey []byte
 
-// localhost:3000/conversations/quickie?after=03/20/2019&before=03/22/2019
-// localhost:3000/conversations/quickie?before=03/22/1999
+// localhost:3000/quickie?after=03/20/2019&before=03/22/2019
+// localhost:3000/quickie?before=03/22/1999
+// Cursing is beneath my sophisticated personality.
 
 // QuickieQuote displays a random quote
 func (v ConversationsResource) QuickieQuote(c buffalo.Context) error {
@@ -207,6 +208,12 @@ func newRequest(c buffalo.Context) *quickieRequest {
 	return &rq
 }
 
+// prepareConv moves the information into a structure that the html template
+// understands.  He also attempts to scale the text so the whole conversation
+// fits on the screen.
+//
+// ToDo: Fix scaling for convs with > 2 quotes
+// ToDo: Fix line breaks for long quotes
 func prepareConv(conv models.Conversation, c buffalo.Context) pageParams {
 	var p pageParams
 

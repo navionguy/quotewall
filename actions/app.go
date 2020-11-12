@@ -1,6 +1,8 @@
 package actions
 
 import (
+	"fmt"
+
 	"github.com/gobuffalo/buffalo"
 	"github.com/gobuffalo/envy"
 	"github.com/gobuffalo/logger"
@@ -48,7 +50,7 @@ func App() *buffalo.App {
 		app = buffalo.New(buffaloOptions)
 
 		// Automatically redirect to SSL
-		app.Use(forceSSL())
+		//app.Use(forceSSL())
 
 		// Log request parameters (filters apply).
 		app.Use(paramlogger.ParameterLogger)
@@ -65,13 +67,15 @@ func App() *buffalo.App {
 		// Setup and use translations:
 		app.Use(translations())
 
-		app.GET("/", HomeHandler)
-
 		cv := &ConversationsResource{}
-		app.Resource("/authors", &AuthorsResource{})
-		app.GET("/conversations/quickie", cv.QuickieQuote)
-		app.GET("/conversations/export/", cv.Export) // this is becoming useless and should probably go away
-		app.Resource("/conversations", cv)
+		app.GET("/quickie", cv.QuickieQuote)
+		if envy.Get("ADDR", "127.0.0.1") == "127.0.0.1" {
+			fmt.Println("adding routes")
+			app.GET("/", HomeHandler)
+			app.Resource("/authors", &AuthorsResource{})
+			app.GET("/conversations/export/", cv.Export) // this is becoming useless and should probably go away
+			app.Resource("/conversations", cv)
+		}
 
 		app.ServeFiles("/", assetsBox) // serve files from the public directory
 	}
