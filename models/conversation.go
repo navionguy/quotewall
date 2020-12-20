@@ -181,20 +181,27 @@ func (c *Conversation) MarshalConversation() (string, error) {
 	return url.PathEscape(string(cvjson)), nil
 }
 
-// UnmarshalConversation convert json back into quote
-func (c *Conversation) UnmarshalConversation(cvjson string) error {
-	ccv, err := url.PathUnescape(cvjson)
+// ExtractConversationFromJSON convert json back into quote
+func (c *Conversation) ExtractConversationFromJSON(cvjson string) error {
+	// Unescape it first
+	cvjson, err := url.PathUnescape(cvjson)
 
 	if err != nil {
 		return err
 	}
+	fmt.Println(cvjson)
 
-	err = json.Unmarshal([]byte(ccv), c)
+	return c.Unmarshal([]byte(cvjson))
+}
+
+// Unmarshal into a conversation object
+func (c *Conversation) Unmarshal(cvjson []byte) error {
+	fmt.Println("Conversation.Unmarshal()")
+	err := json.Unmarshal(cvjson, c)
 
 	if err != nil {
-		fmt.Printf("json unmarshall error %s/n", err.Error())
 		return err
 	}
-
+	fmt.Printf("%v\n", c)
 	return nil
 }

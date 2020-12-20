@@ -108,6 +108,7 @@ func (a *Author) FindByName() error {
 
 	authRecs := []Author{}
 	query := DB.Where(fmt.Sprintf("name ILIKE '%%%s%%' AND name ILIKE '%%%s%%'", parts[0], parts[len(parts)-1]))
+	fmt.Println(query)
 	err := query.All(&authRecs)
 
 	if err != nil {
@@ -127,10 +128,17 @@ func (a *Author) FindByName() error {
 func (a *Author) Create() (*validate.Errors, error) {
 	verr, err := DB.ValidateAndCreate(a)
 
+	if verr.HasAny() || (err != nil) {
+		return verr, err
+	}
+
+	err = a.FindByName()
+
 	return verr, err
 }
 
 // Update modifies an already saved author
 func (a *Author) Update() (*validate.Errors, error) {
+
 	return nil, nil
 }

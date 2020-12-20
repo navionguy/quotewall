@@ -70,7 +70,7 @@ func (v AuthorsResource) Create(c buffalo.Context) error {
 	}
 
 	if nil != speaker.FindByName() {
-		verrs, err := tx.ValidateAndCreate(speaker)
+		verrs, err := speaker.Create()
 
 		if err != nil {
 			return err
@@ -98,7 +98,7 @@ func (v AuthorsResource) Create(c buffalo.Context) error {
 
 	// put the conversation back into the form
 	conv := models.Conversation{}
-	err := conv.UnmarshalConversation(cvjson)
+	err := conv.ExtractConversationFromJSON(cvjson)
 
 	if err != nil {
 		return errors.WithStack(err)

@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/gobuffalo/pop/v5"
@@ -27,7 +28,7 @@ type Quote struct {
 
 	// Foreign keys
 	ConversationID uuid.UUID  `json:"-" db:"conversation_id"`
-	AuthorID       uuid.UUID  `json:"-" db:"author_id"`
+	AuthorID       uuid.UUID  `json:"author_id" db:"author_id"`
 	AnnotationID   *uuid.UUID `json:"-" db:"annotation_id"`
 }
 
@@ -83,10 +84,18 @@ func (q *Quote) ValidateUpdate(tx *pop.Connection) (*validate.Errors, error) {
 
 // Create saves a quote pointing at the conversation
 func (q *Quote) Create(db *pop.Connection, id uuid.UUID) (*validate.Errors, error) {
-
+	fmt.Println("Quote.Create()")
 	verrs, err := q.Annotation.CheckID(db)
 
 	if err != nil || verrs.HasAny() {
+		return verrs, err
+	}
+
+	q.Author.ID = q.AuthorID
+	fmt.Printf("author = %s (%v)\n", q.Author.Name, q.Author.ID)
+	err = q.Author.FindByID()
+
+	if err != nil {
 		return verrs, err
 	}
 

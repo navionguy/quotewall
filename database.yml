@@ -1,7 +1,23 @@
 ---
 development:
   dialect: postgres
-  database: quotewall_development
+  database: workforce_quotewall
+  user: postgres
+  password: postgres
+  host: 127.0.0.1
+  pool: 5
+
+afaria:
+  dialect: postgres
+  database: afaria_quotewall
+  user: postgres
+  password: postgres
+  host: 127.0.0.1
+  pool: 5
+
+workforce:
+  dialect: postgres
+  database: workforce_quotewall
   user: postgres
   password: postgres
   host: 127.0.0.1

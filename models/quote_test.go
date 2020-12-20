@@ -4,15 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gobuffalo/suite/v3"
 	"github.com/gobuffalo/uuid"
 	"github.com/navionguy/quotewall/models"
 	"github.com/stretchr/testify/require"
 )
-
-type modelSuite struct {
-	*suite.Model
-}
 
 func Test_Quote(t *testing.T) {
 

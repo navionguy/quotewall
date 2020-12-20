@@ -1,18 +1,15 @@
 package models_test
 
 import (
-	"strings"
-	"testing"
+	"fmt"
 
-	"github.com/gobuffalo/uuid"
 	"github.com/navionguy/quotewall/models"
-	"github.com/stretchr/testify/require"
 )
 
 /*type modelSuite struct {
 	*suite.Model
 }*/
-
+/*
 func Test_Author(t *testing.T) {
 
 	var fields = []struct {
@@ -134,9 +131,12 @@ func (ms *modelSuite) Test_Author_FindByID_BadID() {
 		ms.Fail("FindByID succeeded with an invalid UUID", auth.Name)
 	}
 }
+*/
 
 func (ms *modelSuite) Test_Author_Create() {
 	ms.LoadFixture("test authors")
+
+	fmt.Println("Testing author creation.")
 
 	auth := models.Author{
 		Name: "Brand New Author",
@@ -153,6 +153,7 @@ func (ms *modelSuite) Test_Author_Create() {
 	}
 }
 
+/*
 func (ms *modelSuite) Test_Author_CreateInvalid() {
 	ms.LoadFixture("test authors")
 
@@ -168,3 +169,4 @@ func (ms *modelSuite) Test_Author_CreateInvalid() {
 		ms.Fail("invalid author validated", "no name supplied")
 	}
 }
+*/

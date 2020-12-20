@@ -160,7 +160,6 @@ func (v ConversationsResource) Create(c buffalo.Context) error {
 	}
 
 	conv, option, err := v.bindToForm(c)
-	fmt.Printf("bind complete, err %s, option %s/n", err, *option)
 
 	if err != nil {
 		return errors.WithStack(err)
@@ -430,11 +429,14 @@ func (v ConversationsResource) bindToForm(c buffalo.Context) (*models.Conversati
 	conv := &models.Conversation{}
 
 	cvjson := c.Request().Form.Get("cvjson")
-	err := conv.UnmarshalConversation(cvjson)
+	fmt.Printf("%v\n", cvjson)
+	err := conv.ExtractConversationFromJSON(cvjson)
 
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
+
+	fmt.Printf("conversation author = %s, %v\n", conv.Quotes[0].Author.Name, conv.Quotes[0].Author.ID)
 
 	option := c.Request().Form.Get("option")
 
