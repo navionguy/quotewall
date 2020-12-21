@@ -196,12 +196,10 @@ func (c *Conversation) ExtractConversationFromJSON(cvjson string) error {
 
 // Unmarshal into a conversation object
 func (c *Conversation) Unmarshal(cvjson []byte) error {
-	fmt.Println("Conversation.Unmarshal()")
 	err := json.Unmarshal(cvjson, c)
 
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%v\n", c)
 	return nil
 }
