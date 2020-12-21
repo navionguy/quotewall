@@ -251,7 +251,13 @@ func (rq *quickieRequest) pickQuote() error {
 	if index == 0 {
 		index = rand.Intn(curShuffle.Size)
 		var blob cookieBlob
+		if index < 1 {
+			index = 1
+		}
 		blob.NextQuote = index + 1
+		if blob.NextQuote >= curShuffle.Size {
+			blob.NextQuote = 1
+		}
 		copy(blob.ParamHash, rq.paramsHash)
 		rq.saveNextQuoteCookie(&blob)
 	}
@@ -596,7 +602,7 @@ func (ck *cookieBlob) nextShuffledQuote(rq *quickieRequest) int {
 	ck.NextQuote = ck.NextQuote + 1
 
 	if ck.NextQuote >= curShuffle.Size {
-		ck.NextQuote = 0
+		ck.NextQuote = 1
 	}
 	rq.saveNextQuoteCookie(ck)
 
@@ -613,7 +619,7 @@ func (ck *cookieBlob) nextFilteredQuote(rq *quickieRequest) int {
 	ck.NextQuote = ck.NextQuote + 1
 
 	if ck.NextQuote >= len(ck.FilteredList) {
-		ck.NextQuote = 0
+		ck.NextQuote = 1
 	}
 	rq.saveNextQuoteCookie(ck)
 
