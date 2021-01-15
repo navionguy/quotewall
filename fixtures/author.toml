@@ -5,9 +5,8 @@ name = "test authors"
     name = "authors"
 
     [[scenario.table.row]]
-      id = "<%= uuidNamed("widget") %>"
+      id = "<%= uuidNamed("author") %>"
       name = "Test Author"
-      body = "some widget body"
       created_at = "<%= now() %>"
       updated_at = "<%= now() %>"
 

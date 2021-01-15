@@ -15,15 +15,10 @@ func Test_Quote(t *testing.T) {
 		fn  string
 		msg string
 	}{
-		{"id", "quote id field not found"},
-		{"created_at", "created_at field not found"},
-		{"updated_at", "updated_at field not found"},
 		{"said_on", "quote said_on field not found"},
-		{"sequence", "quote sequence # field not found"},
 		{"publish", "quote publish field not found"},
 		{"phrase", "quote phrase field not found"},
 		{"Author", "quote Author field not found"},
-		{"conversation_id", "quote conversation_id field not found"},
 	}
 
 	a := models.Quote{}

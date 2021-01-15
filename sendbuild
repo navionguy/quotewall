@@ -1,0 +1,1 @@
+scp bin/quotewall.debian navionguy@45.33.96.191:~/go/src/github.com/navionguy/quotewall/bin

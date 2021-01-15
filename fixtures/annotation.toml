@@ -5,9 +5,8 @@ name = "test annotations"
     name = "annotations"
 
     [[scenario.table.row]]
-      id = uuid.FromString("123e4567-e89b-12d3-a456-426655440000")
-      name = "Test Author"
-      body = "some widget body"
+      id = "<%= uuidNamed("anote") %>"
+      note = "Note about the quote"
       created_at = "<%= now() %>"
       updated_at = "<%= now() %>"
 

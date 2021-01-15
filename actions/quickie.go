@@ -128,6 +128,12 @@ type ShuffleData struct {
 	ServCor     time.Duration // correction to get time closer to server
 }
 
+type rqstStatistics struct {
+	rqstCount int       // counter of how many requests I've seen
+	statStart time.Time // when I started counting requests
+	totalTime int64     // total time spent processing requests
+}
+
 type quickieRequest struct {
 	c          buffalo.Context
 	rqParams   map[string]string
@@ -138,6 +144,12 @@ type quickieRequest struct {
 
 var curShuffle *ShuffleData
 var filterKey []byte
+
+// holds information
+type serviceState struct {
+	curShuffle *ShuffleData
+	runStats   *rqstStatistics
+}
 
 // localhost:3000/quickie?after=03/20/2019&before=03/22/2019
 // localhost:3000/quickie?before=03/22/1999
@@ -598,30 +610,45 @@ func (rq *quickieRequest) nextQuoteCookie() int {
 
 // iterate over the shuffled table and return the index to display
 func (ck *cookieBlob) nextShuffledQuote(rq *quickieRequest) int {
+	ind := ck.incShuffleIndex()
+
+	rq.saveNextQuoteCookie(ck)
+
+	return ind
+}
+
+// increment the index and chcke if I need to wrap
+func (ck *cookieBlob) incShuffleIndex() int {
 	ind := ck.NextQuote
 	ck.NextQuote = ck.NextQuote + 1
 
-	if ck.NextQuote >= curShuffle.Size {
+	if ck.NextQuote > curShuffle.Size {
 		ck.NextQuote = 1
 	}
-	rq.saveNextQuoteCookie(ck)
 
 	return ind
 }
 
 // iterate over the users filtered list of quotes and return the index to display
 func (ck *cookieBlob) nextFilteredQuote(rq *quickieRequest) int {
-	fmt.Printf("length of filtered list %d\n", len(ck.FilteredList))
 	if len(ck.FilteredList) == 0 {
 		return -1
 	}
+	ind := ck.incFilteredIndex()
+
+	rq.saveNextQuoteCookie(ck)
+
+	return ind
+}
+
+// increment the index and chcke if I need to wrap
+func (ck *cookieBlob) incFilteredIndex() int {
 	ind := ck.FilteredList[ck.NextQuote]
 	ck.NextQuote = ck.NextQuote + 1
 
 	if ck.NextQuote >= len(ck.FilteredList) {
-		ck.NextQuote = 1
+		ck.NextQuote = 0
 	}
-	rq.saveNextQuoteCookie(ck)
 
 	return ind
 }

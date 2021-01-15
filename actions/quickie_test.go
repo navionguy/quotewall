@@ -1,14 +1,62 @@
 package actions
 
 import (
-	"net/http"
-	"strings"
 	"testing"
-
-	"github.com/gobuffalo/buffalo"
-	"github.com/google/uuid"
 )
 
+func Test_IncShuffleIndex(t *testing.T) {
+
+	tests := []struct {
+		inp []int
+		res []int
+	}{
+		{inp: []int{-1, 1}, res: []int{1, 1}},
+		{inp: []int{-1, 1, 2, 3}, res: []int{1, 2, 3, 1}},
+	}
+
+	curShuffle = &ShuffleData{Size: 0}
+	for _, tt := range tests {
+		curShuffle.Size = len(tt.inp) - 1 // the database doesn't have a zero record
+
+		ck := cookieBlob{NextQuote: 1}
+
+		for _, want := range tt.res {
+			got := tt.inp[ck.incShuffleIndex()]
+
+			if want != got {
+				t.Fatalf("incShuffleIndex failed, got %d, wanted %d\n", got, want)
+			}
+		}
+	}
+}
+
+func Test_IncFilteredIndex(t *testing.T) {
+
+	tests := []struct {
+		inp []int
+		res []int
+	}{
+		{inp: []int{1}, res: []int{1, 1}},
+		{inp: []int{0, 1, 2}, res: []int{1, 2, 3, 1}},
+	}
+
+	curShuffle = &ShuffleData{Size: 0}
+	for _, tt := range tests {
+		curShuffle.Size = len(tt.inp)
+
+		ck := cookieBlob{FilteredList: tt.inp}
+
+		for _, want := range tt.res {
+			got := tt.res[ck.incFilteredIndex()]
+
+			if want != got {
+				t.Fatalf("incFilteredIndex failed, got %d, wanted %d\n", got, want)
+			}
+		}
+	}
+}
+
+/*
 type testContext struct {
 	buffalo.Context
 }
@@ -31,6 +79,7 @@ func (as *ActionSuite) Test_QuickieBeforeDate() {
 	as.Contains(res.Body.String(), "see us ever needing to change the product")
 
 }
+
 
 func (as *ActionSuite) Test_QuickieAfterDate() {
 	res := as.HTML("/quickie?after=06/24/2019").Get()
@@ -89,3 +138,4 @@ func Test_EncryptDecrypt(t *testing.T) {
 		t.Fatalf("expected %s, got %s\n", text, out)
 	}
 }
+*/

@@ -1,15 +1,13 @@
 package models_test
 
 import (
-	"testing"
-
 	"github.com/gobuffalo/uuid"
 	"github.com/navionguy/quotewall/models"
-	"github.com/stretchr/testify/require"
 )
 
-func Test_Annotation(t *testing.T) {
-	ms.LoadFixture("test authors")
+/*
+func (ms *modelSuite) Test_Annotation() {
+	ms.LoadFixture("test annotations")
 
 	var fields = []struct {
 		fn  string
@@ -29,7 +27,7 @@ func Test_Annotation(t *testing.T) {
 
 	if len(js) == 0 {
 		t.Error("unable to marshal an annotation")
-		t.Fail()
+		ms.Fail()
 	}
 
 	rq := require.New(t)
@@ -47,7 +45,7 @@ func Test_Annotation(t *testing.T) {
 		t.Error("unable to marshal array of annotations")
 		t.Fail()
 	}
-}
+}*/
 
 const validAnnotation = "First Timer!"
 const invalidAnnotation = "*^*&^*&^*^*^&"

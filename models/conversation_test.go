@@ -1,6 +1,7 @@
 package models_test
 
 import (
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -16,12 +17,9 @@ func Test_Conversation(t *testing.T) {
 		fn  string
 		msg string
 	}{
-		{"id", "conversation id field not found"},
 		{"occurredon", "conversation occurred_on field not found"},
 		{"publish", "conversation publish field not found"},
 		{"Quotes", "conversation Quotes field not found"},
-		{"created_at", "created_at field not found"},
-		{"updated_at", "updated_at field not found"},
 	}
 
 	a := models.Conversation{}
@@ -177,13 +175,11 @@ func Test_Marshal(t *testing.T) {
 		t.Fatalf("marshal failed with error %s", err.Error())
 	}
 
-	//ccv, err := url.PathUnescape(res)
-
-	//t.Fatalf("got: %s\n", ccv)
+	ccv, err := url.PathUnescape(res)
 
 	cv2 := models.Conversation{}
 
-	err = cv2.UnmarshalConversation(res)
+	err = cv2.Unmarshal([]byte(ccv))
 
 	if err != nil {
 		t.Fatalf("unmarshal failed with error %s", err.Error())
