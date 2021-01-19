@@ -1,172 +1,139 @@
-package models_test
+package models
 
 import (
-	"fmt"
-
-	"github.com/navionguy/quotewall/models"
+	"github.com/gofrs/uuid"
 )
 
-/*type modelSuite struct {
-	*suite.Model
-}*/
-/*
-func Test_Author(t *testing.T) {
-
-	var fields = []struct {
-		fn  string
-		msg string
-	}{
-		{"id", "author id field not found"},
-		{"name", "author name field not found"},
-		{"created_at", "created_at field not found"},
-		{"updated_at", "updated_at field not found"},
-	}
-
-	a := models.Author{
-		Name: "George B. Burdell",
-	}
-
-	// convert author to json
-
-	js := a.String()
-
-	// if you get nothing, that's a problem
-
-	if len(js) == 0 {
-		t.Error("unable to marshal author")
-		t.FailNow()
-	}
-
-	// make sure expected fields are there
-
-	rq := require.New(t)
-
-	for _, fld := range fields {
-		rq.Containsf(js, fld.fn, fld.msg)
-	}
-
-	var ar models.Authors
-
-	ar = append(ar, a)
-
-	js = ar.String()
-
-	if len(js) == 0 {
-		t.Error("Unable to marshal array of authors")
-		t.Fail()
-	}
-}
-
 const invalidUUID = "563cd207-ab16-4a46-b44e-7317b96c6ba9"
-const validUUID = "b39300f0-6760-4feb-bc32-4b8682b0175d" // matches entry in testauthors.toml
+const validAuthor = "b39300f0-6760-4feb-bc32-4b8682b0175d" // matches entry in author.toml
 const validName = "George P. Burdell"
 
-// Test for finding an existing author
-func (ms *modelSuite) Test_Author_FindByID() {
-	//	ms.LoadFixture("test authors")
+func (ms *ModelSuite) Test_AuthorGet() {
+	ms.LoadFixture("test authors")
 
-	id, err := uuid.FromString(validUUID)
+	auths := []Author{}
 
-	if err != nil {
-		ms.Fail("uuid.FromString failed", err.Error())
-	}
-
-	auth := models.Author{
-		ID: id,
-	}
-
-	err = auth.FindByID()
+	err := ms.DB.All(&auths)
 
 	if err != nil {
-		ms.Fail("FindByID failed", err.Error())
+		ms.Fail(err.Error())
 	}
 
-	if len(auth.Name) == 0 {
-		ms.Fail("FindByID failed", "validUUID was not found in database")
+	ms.Equal(3, len(auths))
+
+	var authors Authors
+	for _, auth := range auths {
+		authors = append(authors, auth)
+
+		ms.Equal(auth.Name, auth.SelectLabel())
+		ms.Equal(auth.ID.String(), auth.SelectValue())
 	}
 
-	if strings.Compare(auth.Name, validName) != 0 {
-		ms.Fail("FindByID didn't find expected author", auth.Name)
+	authsJS := authors.String()
+
+	for _, auth := range auths {
+		js := auth.String()
+
+		ms.Contains(authsJS, js)
+	}
+}
+
+func (ms *ModelSuite) Test_Author_FindByID() {
+	tests := []struct {
+		test   string
+		id     string
+		expErr bool
+	}{
+		{test: "Good ID", id: validAuthor, expErr: false},
+		{test: "Bad ID", id: invalidUUID, expErr: true},
 	}
 
-	// as long as I have a valid author, check some other functions
+	ms.LoadFixture(("test authors"))
 
-	if strings.Compare(auth.SelectLabel(), validName) != 0 {
-		ms.Fail("unexpected SelectLabel", auth.SelectLabel())
-	}
+	for _, tt := range tests {
+		id, err := uuid.FromString(tt.id)
 
-	v := auth.SelectValue()
-	s, ok := v.(string)
-
-	if ok {
-		if strings.Compare(s, validUUID) != 0 {
-			ms.Fail("unexpected SelectValue", s)
+		if err != nil {
+			ms.Fail("uuid.FromString failed", err.Error())
 		}
-	} else {
-		ms.Fail("unexpected SelectValue", "not a string")
+
+		auth := Author{ID: id}
+		err = auth.FindByID()
+
+		goterr := (err != nil)
+		ms.EqualValuesf(goterr, tt.expErr, "Author_FindByID(%s) got %b, wanted %b\n", tt.test, goterr, tt.expErr)
 	}
 }
 
-// test that FindByID correctly handles NOT finding the author
-func (ms *modelSuite) Test_Author_FindByID_BadID() {
-	ms.LoadFixture("test authors")
-
-	id, err := uuid.FromString(invalidUUID)
-
-	if err != nil {
-		ms.Fail("uuid.FromString failed", err.Error())
+func (ms *ModelSuite) Test_Author_Create() {
+	tests := []struct {
+		test   string
+		name   string
+		expErr bool
+	}{
+		{test: "Good Name", name: "Shari Freeman", expErr: false},
+		{test: "Blank Name", expErr: true},
 	}
 
-	auth := models.Author{
-		ID: id,
-	}
+	ms.LoadFixture(("test authors"))
 
-	err = auth.FindByID()
+	for _, tt := range tests {
+		auth := &Author{Name: tt.name}
+		verrs, _ := auth.Create()
 
-	if err != nil {
-		ms.Fail("FindByID failed", err.Error())
-	}
-
-	if len(auth.Name) != 0 {
-		ms.Fail("FindByID succeeded with an invalid UUID", auth.Name)
-	}
-}
-*/
-
-func (ms *modelSuite) Test_Author_Create() {
-	ms.LoadFixture("test authors")
-
-	fmt.Println("Testing author creation.")
-
-	auth := models.Author{
-		Name: "Brand New Author",
-	}
-
-	verrs, err := ms.DB.ValidateAndCreate(&auth)
-
-	if err != nil {
-		ms.Fail("failed to create author", err.Error())
-	}
-
-	if verrs.HasAny() {
-		ms.Fail("unable to validate new author", verrs.String())
+		ms.EqualValuesf(verrs.HasAny(), tt.expErr, "Author_Create(%s) got %b, wanted %b\n", tt.test, verrs.HasAny(), tt.expErr)
 	}
 }
 
-/*
-func (ms *modelSuite) Test_Author_CreateInvalid() {
-	ms.LoadFixture("test authors")
-
-	auth := models.Author{}
-
-	verrs, err := ms.DB.ValidateAndCreate(&auth)
-
-	if err != nil {
-		ms.Fail("failed to create author", err.Error())
+func (ms *ModelSuite) Test_Author_FindByName() {
+	tests := []struct {
+		test   string
+		name   string
+		expErr bool
+	}{
+		{test: "Good Name", name: "Shari Freeman", expErr: false},
+		{test: "Bad Name", name: "Alfred E. Neuman", expErr: true},
+		{test: "Blank Name", name: "", expErr: true},
 	}
 
-	if !verrs.HasAny() {
-		ms.Fail("invalid author validated", "no name supplied")
+	ms.LoadFixture(("test authors"))
+
+	for _, tt := range tests {
+		auth := Author{Name: tt.name}
+		err := auth.FindByName()
+
+		goterr := (err != nil)
+		ms.EqualValuesf(goterr, tt.expErr, "Author_FindByName(%s) got %b, wanted %b\n", tt.test, goterr, tt.expErr)
 	}
 }
-*/
+
+func (ms *ModelSuite) Test_Author_Update() {
+	tests := []struct {
+		test    string
+		id      string
+		newName string
+		expErr  bool
+	}{
+		{test: "Good Name", id: validAuthor, newName: "Alfred E. Neuman", expErr: false},
+		{test: "Bad Name", id: validAuthor, expErr: true},
+	}
+
+	ms.LoadFixture(("test authors"))
+
+	for _, tt := range tests {
+		id, err := uuid.FromString(tt.id)
+
+		if err != nil {
+			ms.Fail("uuid.FromString failed", err.Error())
+		}
+
+		auth := Author{ID: id}
+
+		if len(tt.newName) > 0 {
+			auth.Name = tt.newName
+		}
+
+		verrs, _ := auth.Update()
+		ms.EqualValuesf(verrs.HasAny(), tt.expErr, "Author_Update(%s) got %b, wanted %b\n", tt.test, verrs.HasAny(), tt.expErr)
+	}
+}

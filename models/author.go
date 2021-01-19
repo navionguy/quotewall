@@ -10,6 +10,7 @@ import (
 	"github.com/gobuffalo/pop/v5"
 	"github.com/gobuffalo/uuid"
 	"github.com/gobuffalo/validate/v3"
+	"github.com/gobuffalo/validate/v3/validators"
 )
 
 // Author holds the name of somebody who authored a quote
@@ -49,8 +50,8 @@ func (a Authors) String() string {
 // This method is not required and may be deleted.
 func (a *Author) Validate(tx *pop.Connection) (*validate.Errors, error) {
 	return validate.Validate(
-	//&validators.StringIsPresent{Field: a.Name, Name: "Name"},
-	//&validators.StringLengthInRange{Field: a.Name, Name: "Name", Min: 1, Max: 255, Message: "length must be 1-255"},
+		&validators.StringIsPresent{Field: a.Name, Name: "Name"},
+		&validators.StringLengthInRange{Field: a.Name, Name: "Name", Min: 1, Max: 255, Message: "length must be 1-255"},
 	), nil
 }
 
@@ -78,7 +79,6 @@ func (a Author) SelectLabel() string {
 
 // FindByID pulls up the author record based on ID
 func (a *Author) FindByID() error {
-
 	authRecs := []Author{}
 	query := DB.Where(fmt.Sprintf("id = '%s'", a.ID))
 	err := query.All(&authRecs)
@@ -108,7 +108,6 @@ func (a *Author) FindByName() error {
 
 	authRecs := []Author{}
 	query := DB.Where(fmt.Sprintf("name ILIKE '%%%s%%' AND name ILIKE '%%%s%%'", parts[0], parts[len(parts)-1]))
-	fmt.Println(query)
 	err := query.All(&authRecs)
 
 	if err != nil {
@@ -139,6 +138,13 @@ func (a *Author) Create() (*validate.Errors, error) {
 
 // Update modifies an already saved author
 func (a *Author) Update() (*validate.Errors, error) {
+	verr, err := DB.ValidateAndUpdate(a)
 
-	return nil, nil
+	if verr.HasAny() || (err != nil) {
+		return verr, err
+	}
+
+	err = a.FindByName()
+
+	return verr, err
 }
