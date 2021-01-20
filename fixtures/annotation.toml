@@ -5,8 +5,14 @@ name = "test annotations"
     name = "annotations"
 
     [[scenario.table.row]]
-      id = "<%= uuidNamed("anote") %>"
+      id = "<%= uuid() %>"
       note = "Note about the quote"
+      created_at = "<%= now() %>"
+      updated_at = "<%= now() %>"
+
+    [[scenario.table.row]]
+      id = "<%= uuid() %>"
+      note = "First Timer!"
       created_at = "<%= now() %>"
       updated_at = "<%= now() %>"
 

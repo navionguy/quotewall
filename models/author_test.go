@@ -8,36 +8,6 @@ const invalidUUID = "563cd207-ab16-4a46-b44e-7317b96c6ba9"
 const validAuthor = "b39300f0-6760-4feb-bc32-4b8682b0175d" // matches entry in author.toml
 const validName = "George P. Burdell"
 
-func (ms *ModelSuite) Test_AuthorGet() {
-	ms.LoadFixture("test authors")
-
-	auths := []Author{}
-
-	err := ms.DB.All(&auths)
-
-	if err != nil {
-		ms.Fail(err.Error())
-	}
-
-	ms.Equal(3, len(auths))
-
-	var authors Authors
-	for _, auth := range auths {
-		authors = append(authors, auth)
-
-		ms.Equal(auth.Name, auth.SelectLabel())
-		ms.Equal(auth.ID.String(), auth.SelectValue())
-	}
-
-	authsJS := authors.String()
-
-	for _, auth := range auths {
-		js := auth.String()
-
-		ms.Contains(authsJS, js)
-	}
-}
-
 func (ms *ModelSuite) Test_Author_FindByID() {
 	tests := []struct {
 		test   string
@@ -61,17 +31,19 @@ func (ms *ModelSuite) Test_Author_FindByID() {
 		err = auth.FindByID()
 
 		goterr := (err != nil)
-		ms.EqualValuesf(goterr, tt.expErr, "Author_FindByID(%s) got %b, wanted %b\n", tt.test, goterr, tt.expErr)
+		ms.EqualValuesf(goterr, tt.expErr, "Author_FindByID(%s) got %t, wanted %t\n", tt.test, goterr, tt.expErr)
 	}
 }
 
 func (ms *ModelSuite) Test_Author_Create() {
 	tests := []struct {
-		test   string
-		name   string
-		expErr bool
+		test    string
+		name    string
+		expErr  bool
+		expJSON string
+		arrJSON string
 	}{
-		{test: "Good Name", name: "Shari Freeman", expErr: false},
+		{test: "Good Name", name: "Shari Freeman", expErr: false, expJSON: "{\"name\":\"Shari Freeman\"}", arrJSON: "[{\"name\":\"Shari Freeman\"}]"},
 		{test: "Blank Name", expErr: true},
 	}
 
@@ -81,7 +53,25 @@ func (ms *ModelSuite) Test_Author_Create() {
 		auth := &Author{Name: tt.name}
 		verrs, _ := auth.Create()
 
-		ms.EqualValuesf(verrs.HasAny(), tt.expErr, "Author_Create(%s) got %b, wanted %b\n", tt.test, verrs.HasAny(), tt.expErr)
+		ms.EqualValuesf(verrs.HasAny(), tt.expErr, "Author_Create(%s) got %t, wanted %t\n", tt.test, verrs.HasAny(), tt.expErr)
+
+		if !tt.expErr {
+			// got a valid author, let's test his string functions
+			jsn := auth.String()
+
+			ms.EqualValuesf(tt.expJSON, jsn, "Author.String(%s) got %s, wanted %s\n", tt.test, jsn, tt.expJSON)
+
+			var authAry Authors
+			authAry = append(authAry, *auth)
+			ajsn := authAry.String()
+
+			ms.EqualValuesf(tt.arrJSON, ajsn, "Author[].String(%s) got %s, wanted %s\n", tt.test, ajsn, tt.arrJSON)
+
+			// and his select functions
+
+			ms.EqualValuesf(auth.SelectValue(), auth.ID.String(), "Author.SelectValue(%s) got %s, wanted %s\n", tt.test, auth.SelectValue(), auth.ID.String())
+			ms.EqualValuesf(auth.SelectLabel(), auth.Name, "Author.SelectLabel(%s) got %s, wanted %s\n", tt.test, auth.SelectLabel(), auth.Name)
+		}
 	}
 }
 
@@ -103,7 +93,7 @@ func (ms *ModelSuite) Test_Author_FindByName() {
 		err := auth.FindByName()
 
 		goterr := (err != nil)
-		ms.EqualValuesf(goterr, tt.expErr, "Author_FindByName(%s) got %b, wanted %b\n", tt.test, goterr, tt.expErr)
+		ms.EqualValuesf(goterr, tt.expErr, "Author_FindByName(%s) got %t, wanted %t\n", tt.test, goterr, tt.expErr)
 	}
 }
 
@@ -134,6 +124,6 @@ func (ms *ModelSuite) Test_Author_Update() {
 		}
 
 		verrs, _ := auth.Update()
-		ms.EqualValuesf(verrs.HasAny(), tt.expErr, "Author_Update(%s) got %b, wanted %b\n", tt.test, verrs.HasAny(), tt.expErr)
+		ms.EqualValuesf(verrs.HasAny(), tt.expErr, "Author_Update(%s) got %t, wanted %t\n", tt.test, verrs.HasAny(), tt.expErr)
 	}
 }

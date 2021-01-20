@@ -49,12 +49,6 @@ func (a *Annotation) ValidateCreate(tx *pop.Connection) (*validate.Errors, error
 	return validate.NewErrors(), nil
 }
 
-// ValidateUpdate gets run every time you call "pop.ValidateAndUpdate" method.
-// This method is not required and may be deleted.
-func (a *Annotation) ValidateUpdate(tx *pop.Connection) (*validate.Errors, error) {
-	return validate.NewErrors(), nil
-}
-
 // FindByNote tries to find the note already saved in the
 // annotations table.
 // If it does, it returns the full annotation record.
@@ -81,6 +75,7 @@ func (a *Annotation) FindByNote() error {
 }
 
 // CheckID makes sure that if there is an annotation, the db record for it exists
+// creating it if needed
 func (a *Annotation) CheckID(db *pop.Connection) (*validate.Errors, error) {
 
 	var ve validate.Errors
