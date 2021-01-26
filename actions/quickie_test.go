@@ -2,6 +2,7 @@ package actions
 
 import (
 	"testing"
+	"time"
 )
 
 func Test_IncShuffleIndex(t *testing.T) {
@@ -54,6 +55,15 @@ func Test_IncFilteredIndex(t *testing.T) {
 			}
 		}
 	}
+}
+
+func Test_LogMetrics(t *testing.T) {
+	var rq quickieRequest
+
+	rq.rcvdTime = time.Now()
+
+	time.Sleep(10 * time.Millisecond)
+	rq.LogMetrics()
 }
 
 /*

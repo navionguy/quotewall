@@ -128,28 +128,17 @@ type ShuffleData struct {
 	ServCor     time.Duration // correction to get time closer to server
 }
 
-type rqstStatistics struct {
-	rqstCount int       // counter of how many requests I've seen
-	statStart time.Time // when I started counting requests
-	totalTime int64     // total time spent processing requests
-}
-
 type quickieRequest struct {
 	c          buffalo.Context
 	rqParams   map[string]string
 	paramsHash []byte
 	paramsChgd bool
 	quoteID    *uuid.UUID
+	rcvdTime   time.Time
 }
 
 var curShuffle *ShuffleData
 var filterKey []byte
-
-// holds information
-type serviceState struct {
-	curShuffle *ShuffleData
-	runStats   *rqstStatistics
-}
 
 // localhost:3000/quickie?after=03/20/2019&before=03/22/2019
 // localhost:3000/quickie?before=03/22/1999
@@ -158,6 +147,7 @@ type serviceState struct {
 // QuickieQuote displays a random quote
 func (v ConversationsResource) QuickieQuote(c buffalo.Context) error {
 	rq := newRequest(c)
+	defer rq.LogMetrics() // as I leave, log how long it took
 
 	err := rq.getShuffleData()
 
@@ -202,6 +192,7 @@ func (v ConversationsResource) QuickieQuote(c buffalo.Context) error {
 // initialize a quickieRequest object
 func newRequest(c buffalo.Context) *quickieRequest {
 	var rq quickieRequest
+	rq.rcvdTime = time.Now()
 	rq.c = c
 	rq.rqParams = make(map[string]string)
 
@@ -218,6 +209,20 @@ func newRequest(c buffalo.Context) *quickieRequest {
 	}
 
 	return &rq
+}
+
+func (rq *quickieRequest) LogMetrics() {
+	elapsed := time.Since(rq.rcvdTime).Milliseconds()
+	fmt.Printf("elapsed is %d", elapsed)
+	strElapsed := fmt.Sprint(elapsed)
+
+	q := models.DB.RawQuery("SELECT * FROM log_metric( ? );", strElapsed)
+
+	err := q.Exec()
+
+	if err != nil {
+		return
+	}
 }
 
 // prepareConv moves the information into a structure that the html template

@@ -6,6 +6,13 @@ create_table("conversations") {
 	t.Column("publish", "bool", {})
 }
 
+exec("echo create table requests")
+create_table("requests") {
+	t.Column("id", "int", {"primary": true})
+	t.Column("count", "int", {})
+    t.Column("exec_ms", "int", {})
+}
+
 exec("echo create table authors")
 create_table("authors") {
 	t.Column("id", "uuid", {"primary": true})
@@ -74,7 +81,8 @@ END;
 $$ language 'plpgsql' STRICT;")
 
 exec("echo create extension uuid-ossp")
-raw(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`)
+sql ("
+CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";")
 
 exec("echo create function shuffle_deck")
 sql ("
@@ -138,5 +146,109 @@ BEGIN
     
     RETURN max_rec;
 END
+$$ language 'plpgsql' STRICT;
+")
+
+
+exec("echo create function log_metric")
+sql ("
+
+CREATE OR REPLACE FUNCTION log_metric(ms integer) RETURNS integer
+    AS $$
+/* log_metric is passed how long a request took in milliseconds */
+/* and tries to add it to the newest row of data to create a    */
+/* time based 'bucket' of requests.  A new row is added anytime */
+/* the oldest row ages past 24 hours or if the rolling count of */
+/* milliseconds will exceed the maximum value of an integer,    */
+/* 2147483647.  Getting that to happen would require a *lot* of */
+/* concurrent requests to the server.  But it could happen!     */
+/*                                                              */
+/* After updating the chosen row, I calculate the average time  */
+/* of all the requests in that bucket and return it.            */
+DECLARE
+  MAXINT   CONSTANT INTEGER := 2147483647;
+  SPAREROW CONSTANT INTEGER := 5;
+  typical           INTEGER;
+  bucket            INTEGER;
+  totalms           INTEGER;
+  rqst              INTEGER;
+  created           TIMESTAMP;
+BEGIN
+  /* see if there are any rows in the table */
+  IF NOT EXISTS(SELECT r.ID FROM requests r ORDER BY r.ID DESC LIMIT 1)
+    THEN
+      /* table doesn't contain any rows so I will just insert one */
+      /* my one data point becomes the new average */
+
+      INSERT INTO requests(count, exec_ms, created_at, updated_at) VALUES( 1, ms, now(), now());
+      typical = ms;
+      return typical;
+    END IF;
+
+  /* Try to add this new metric */ 
+  /* First, get the most recent bucket */
+  SELECT r.ID, r.COUNT, r.EXEC_MS, r.CREATED_AT INTO bucket, rqst, totalms, created FROM requests r ORDER BY r.ID DESC LIMIT 1;
+
+  /* is it still current? */
+  IF EXTRACT(doy FROM now()) <> EXTRACT(doy FROM created)
+    THEN
+      /* New day, time for a new bucket */
+
+      INSERT INTO requests(count, exec_ms, created_at, updated_at) VALUES( 1, ms, now(), now());
+      typical = ms;
+      return typical;
+    END IF;
+
+  /* make sure he has room for my sample */
+
+  IF (MAXINT - totalms) < ms OR (MAXINT - rqst) < 5
+    THEN
+      /* a counter is about to overflow, new bucket please */
+
+      INSERT INTO requests(count, exec_ms, created_at, updated_at) VALUES( 1, ms, now(), now());
+      typical = ms;
+      return typical;
+    END IF;
+
+  UPDATE requests SET count = count + 1, exec_ms = exec_ms + ms, updated_at = now() WHERE ID = bucket;
+  typical = (totalms + ms) / (rqst + 1);
+  RETURN typical;
+END
+
+$$ language 'plpgsql' STRICT;
+")
+
+exec("echo create function new_requests_table")
+sql ("
+
+CREATE OR REPLACE FUNCTION new_requests_table() RETURNS VOID
+    AS $$
+/* The time has come to create a new 'requests' table.  To do   */
+/* so, I rename the table using the timestamp of the first      */
+/* entry getting created and the last update timestamp to form  */
+/* a unique name. */
+DECLARE
+  StartDate text;
+  EndDate   text;
+  NewName   text;
+BEGIN
+  /* first rename the table */
+  SELECT r.UPDATED_AT INTO StartDate FROM requests r ORDER BY r.ID ASC LIMIT 1;
+  SELECT r.UPDATED_AT INTO EndDate FROM requests r ORDER BY r.ID DESC LIMIT 1;
+  SELECT CONCAT('requests', StartDate, ' to ', EndDate) INTO NewName;
+  EXECUTE format('ALTER TABLE requests RENAME TO %I', newName);
+
+  /* now recreate it */
+  CREATE TABLE public.requests (
+    id SERIAL PRIMARY KEY,
+    count integer NOT NULL,
+    exec_ms integer NOT NULL,
+    created_at timestamp without time zone NOT NULL,
+    updated_at timestamp without time zone NOT NULL
+);
+  ALTER TABLE public.requests OWNER TO postgres;
+
+END
+
 $$ language 'plpgsql' STRICT;
 ")

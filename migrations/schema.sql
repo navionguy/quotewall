@@ -17,6 +17,131 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
+-- Name: uuid-ossp; Type: EXTENSION; Schema: -; Owner: -
+--
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
+
+
+--
+-- Name: EXTENSION "uuid-ossp"; Type: COMMENT; Schema: -; Owner: 
+--
+
+COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
+
+
+--
+-- Name: log_metric(integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.log_metric(ms integer) RETURNS integer
+    LANGUAGE plpgsql STRICT
+    AS $_$
+/* log_metric is passed how long a request took in milliseconds */
+/* and tries to add it to the newest row of data to create a    */
+/* time based 'bucket' of requests.  A new row is added anytime */
+/* the oldest row ages past 24 hours or if the rolling count of */
+/* milliseconds will exceed the maximum value of an integer,    */
+/* 2147483647.  Getting that to happen would require a *lot* of */
+/* concurrent requests to the server.  But it could happen!     */
+/*                                                              */
+/* After updating the chosen row, I calculate the average time  */
+/* of all the requests in that bucket and return it.            */
+DECLARE
+  MAXINT   CONSTANT INTEGER := 2147483647;
+  SPAREROW CONSTANT INTEGER := 5;
+  typical           INTEGER;
+  bucket            INTEGER;
+  totalms           INTEGER;
+  rqst              INTEGER;
+  created           TIMESTAMP;
+BEGIN
+  /* see if there are any rows in the table */
+  IF NOT EXISTS(SELECT r.ID FROM requests r ORDER BY r.ID DESC LIMIT 1)
+    THEN
+      /* table doesn't contain any rows so I will just insert one */
+      /* my one data point becomes the new average */
+
+      INSERT INTO requests(count, exec_ms, created_at, updated_at) VALUES( 1, ms, now(), now());
+      typical = ms;
+      return typical;
+    END IF;
+
+  /* Try to add this new metric */ 
+  /* First, get the most recent bucket */
+  SELECT r.ID, r.COUNT, r.EXEC_MS, r.CREATED_AT INTO bucket, rqst, totalms, created FROM requests r ORDER BY r.ID DESC LIMIT 1;
+
+  /* is it still current$1 */
+  IF EXTRACT(doy FROM now()) <> EXTRACT(doy FROM created)
+    THEN
+      /* New day, time for a new bucket */
+
+      INSERT INTO requests(count, exec_ms, created_at, updated_at) VALUES( 1, ms, now(), now());
+      typical = ms;
+      return typical;
+    END IF;
+
+  /* make sure he has room for my sample */
+
+  IF (MAXINT - totalms) < ms OR (MAXINT - rqst) < 5
+    THEN
+      /* a counter is about to overflow, new bucket please */
+
+      INSERT INTO requests(count, exec_ms, created_at, updated_at) VALUES( 1, ms, now(), now());
+      typical = ms;
+      return typical;
+    END IF;
+
+  UPDATE requests SET count = count + 1, exec_ms = exec_ms + ms, updated_at = now() WHERE ID = bucket;
+  typical = (totalms + ms) / (rqst + 1);
+  RETURN typical;
+END
+
+$_$;
+
+
+ALTER FUNCTION public.log_metric(ms integer) OWNER TO postgres;
+
+--
+-- Name: new_requests_table(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.new_requests_table() RETURNS void
+    LANGUAGE plpgsql STRICT
+    AS $$
+/* The time has come to create a new 'requests' table.  To do   */
+/* so, I rename the table using the timestamp of the first      */
+/* entry getting created and the last update timestamp to form  */
+/* a unique name. */
+DECLARE
+  StartDate text;
+  EndDate   text;
+  NewName   text;
+BEGIN
+  /* first rename the table */
+  SELECT r.UPDATED_AT INTO StartDate FROM requests r ORDER BY r.ID ASC LIMIT 1;
+  SELECT r.UPDATED_AT INTO EndDate FROM requests r ORDER BY r.ID DESC LIMIT 1;
+  SELECT CONCAT('requests', StartDate, ' to ', EndDate) INTO NewName;
+  EXECUTE format('ALTER TABLE requests RENAME TO %I', newName);
+
+  /* now recreate it */
+  CREATE TABLE public.requests (
+    id SERIAL PRIMARY KEY,
+    count integer NOT NULL,
+    exec_ms integer NOT NULL,
+    created_at timestamp without time zone NOT NULL,
+    updated_at timestamp without time zone NOT NULL
+);
+  ALTER TABLE public.requests OWNER TO postgres;
+
+END
+
+$$;
+
+
+ALTER FUNCTION public.new_requests_table() OWNER TO postgres;
+
+--
 -- Name: pick_from_range(integer, integer); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -193,6 +318,43 @@ CREATE TABLE public.quotes (
 ALTER TABLE public.quotes OWNER TO postgres;
 
 --
+-- Name: requests; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.requests (
+    id integer NOT NULL,
+    count integer NOT NULL,
+    exec_ms integer NOT NULL,
+    created_at timestamp without time zone NOT NULL,
+    updated_at timestamp without time zone NOT NULL
+);
+
+
+ALTER TABLE public.requests OWNER TO postgres;
+
+--
+-- Name: requests_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.requests_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.requests_id_seq OWNER TO postgres;
+
+--
+-- Name: requests_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.requests_id_seq OWNED BY public.requests.id;
+
+
+--
 -- Name: schema_migration; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -217,6 +379,13 @@ CREATE TABLE public.users (
 
 
 ALTER TABLE public.users OWNER TO postgres;
+
+--
+-- Name: requests id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.requests ALTER COLUMN id SET DEFAULT nextval('public.requests_id_seq'::regclass);
+
 
 --
 -- Name: annotations annotations_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
@@ -256,6 +425,14 @@ ALTER TABLE ONLY public.permissions
 
 ALTER TABLE ONLY public.quotes
     ADD CONSTRAINT quotes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: requests requests_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.requests
+    ADD CONSTRAINT requests_pkey PRIMARY KEY (id);
 
 
 --
