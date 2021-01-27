@@ -5,13 +5,13 @@ name = "test authors"
     name = "authors"
 
     [[scenario.table.row]]
-      id = "<%= uuid() %>"
+      id = "C65BCD7E-4A50-4C4D-9A39-D44F83B64A6B"
       name = "Test Author"
       created_at = "<%= now() %>"
       updated_at = "<%= now() %>"
 
     [[scenario.table.row]]
-      id = "<%= uuidNamed("validAuthor") %>"
+      id = "1C29425C-DF3A-4013-905C-D097795E8B01"
       name = "George P. Burdell"
       created_at = "<%= now() %>"
       updated_at = "<%= now() %>"

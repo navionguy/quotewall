@@ -1,0 +1,26 @@
+[[scenario]]
+name = "test conversations"
+
+  [[scenario.table]]
+    name = "conversations"
+
+    [[scenario.table.row]]
+      id = "E682FE38-23F4-4410-8D67-BDCC7F3782CB"
+      created_at = "<%= now() %>"
+      updated_at = "<%= now() %>"
+      occurredon = "<%= now() %>"
+      publish = true
+
+    [[scenario.table.row]]
+      id = "EA3F445D-DF4F-4AB1-A9C3-C0733CC903C1"
+      created_at = "<%= now() %>"
+      updated_at = "<%= now() %>"
+      occurredon = "<%= now() %>"
+      publish = true
+
+    [[scenario.table.row]]
+      id = "C341D7CC-B5DA-4C1A-A1AE-57B841D4864B"
+      created_at = "<%= now() %>"
+      updated_at = "<%= now() %>"
+      occurredon = "<%= now() %>"
+      publish = true

@@ -1,0 +1,38 @@
+[[scenario]]
+name = "test quotes"
+
+  [[scenario.table]]
+    name = "quotes"
+
+    [[scenario.table.row]]
+      id = "<%= uuid() %>"
+      created_at = "<%= now() %>"
+      updated_at = "<%= now() %>"
+      saidon = "<%= now() %>"
+      sequence = 0
+      phrase = "I really don't see us changing the product name again."
+      publish = true
+      author_id = "C65BCD7E-4A50-4C4D-9A39-D44F83B64A6B"
+      conversation_id = "E682FE38-23F4-4410-8D67-BDCC7F3782CB"
+
+    [[scenario.table.row]]
+      id = "<%= uuid() %>"
+      created_at = "<%= now() %>"
+      updated_at = "<%= now() %>"
+      saidon = "<%= now() %>"
+      sequence = 0
+      phrase = "Dumb shit!"
+      publish = true
+      author_id = "1C29425C-DF3A-4013-905C-D097795E8B01"
+      conversation_id = "EA3F445D-DF4F-4AB1-A9C3-C0733CC903C1"
+
+    [[scenario.table.row]]
+      id = "<%= uuid() %>"
+      created_at = "<%= now() %>"
+      updated_at = "<%= now() %>"
+      saidon = "<%= now() %>"
+      sequence = 0
+      phrase = "Dan Safstrom quit?"
+      publish = true
+      author_id = "b39300f0-6760-4feb-bc32-4b8682b0175d"
+      conversation_id = "C341D7CC-B5DA-4C1A-A1AE-57B841D4864B"

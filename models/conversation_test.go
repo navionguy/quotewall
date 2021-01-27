@@ -1,4 +1,4 @@
-package models_test
+package models
 
 import (
 	"net/url"
@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/navionguy/quotewall/models"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,7 +21,7 @@ func Test_Conversation(t *testing.T) {
 		{"Quotes", "conversation Quotes field not found"},
 	}
 
-	a := models.Conversation{}
+	a := Conversation{}
 
 	js := a.String()
 
@@ -37,7 +36,7 @@ func Test_Conversation(t *testing.T) {
 		rq.Containsf(js, fld.fn, fld.msg)
 	}
 
-	var ar models.Conversations
+	var ar Conversations
 	ar = append(ar, a)
 
 	js = ar.String()
@@ -48,17 +47,17 @@ func Test_Conversation(t *testing.T) {
 	}
 }
 
-func (ms *modelSuite) Test_CreateConversation() {
+func (ms *ModelSuite) Test_CreateConversation() {
 	authors, _, _ := loadFixtureData(ms) // re-use from quote_test.go
 
-	q := models.Quote{
+	q := Quote{
 		Phrase:   "A shiny new quote.",
 		Publish:  true,
 		SaidOn:   time.Now(),
 		AuthorID: authors[0].ID,
 		Sequence: 0,
 	}
-	conversation := models.Conversation{
+	conversation := Conversation{
 		Publish:    true,
 		OccurredOn: time.Now(),
 	}
@@ -77,17 +76,17 @@ func (ms *modelSuite) Test_CreateConversation() {
 	}
 }
 
-func (ms *modelSuite) Test_CreateConversationInvalidOccurredOn() {
+func (ms *ModelSuite) Test_CreateConversationInvalidOccurredOn() {
 	authors, _, _ := loadFixtureData(ms) // re-use from quote_test.go
 
-	q := models.Quote{
+	q := Quote{
 		Phrase:   "A shiny new quote.",
 		Publish:  true,
 		SaidOn:   time.Now(),
 		AuthorID: authors[0].ID,
 		Sequence: 0,
 	}
-	conversation := models.Conversation{
+	conversation := Conversation{
 		Publish:    true,
 		OccurredOn: time.Now(),
 	}
@@ -111,10 +110,10 @@ func (ms *modelSuite) Test_CreateConversationInvalidOccurredOn() {
 	}
 }
 
-func (ms *modelSuite) Test_CreateConversationInvalidSaidOn() {
+func (ms *ModelSuite) Test_CreateConversationInvalidSaidOn() {
 	authors, _, _ := loadFixtureData(ms) // re-use from quote_test.go
 
-	q := models.Quote{
+	q := Quote{
 		Phrase:   "A shiny new quote.",
 		Publish:  true,
 		SaidOn:   time.Now(),
@@ -122,7 +121,7 @@ func (ms *modelSuite) Test_CreateConversationInvalidSaidOn() {
 		Sequence: 0,
 	}
 	q.SaidOn = q.SaidOn.AddDate(0, 0, 2)
-	conversation := models.Conversation{
+	conversation := Conversation{
 		Publish:    true,
 		OccurredOn: time.Now(),
 	}
@@ -146,16 +145,16 @@ func (ms *modelSuite) Test_CreateConversationInvalidSaidOn() {
 }
 
 func Test_Marshal(t *testing.T) {
-	auth := models.Author{
+	auth := Author{
 		Name: "George P.Burdell",
 		ID:   uuid.FromStringOrNil("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
 	}
 
-	note := models.Annotation{
+	note := Annotation{
 		Note: "A snide comment",
 	}
 
-	q := models.Quote{
+	q := Quote{
 		Phrase:     "A shiny new quote.",
 		Publish:    true,
 		SaidOn:     time.Now(),
@@ -163,7 +162,7 @@ func Test_Marshal(t *testing.T) {
 		Sequence:   0,
 		Annotation: &note,
 	}
-	conversation := models.Conversation{
+	conversation := Conversation{
 		Publish:    true,
 		OccurredOn: time.Now(),
 	}
@@ -177,7 +176,7 @@ func Test_Marshal(t *testing.T) {
 
 	ccv, err := url.PathUnescape(res)
 
-	cv2 := models.Conversation{}
+	cv2 := Conversation{}
 
 	err = cv2.Unmarshal([]byte(ccv))
 

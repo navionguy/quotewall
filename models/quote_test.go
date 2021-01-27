@@ -1,11 +1,11 @@
-package models_test
+package models
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/gobuffalo/uuid"
-	"github.com/navionguy/quotewall/models"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,7 +21,7 @@ func Test_Quote(t *testing.T) {
 		{"Author", "quote Author field not found"},
 	}
 
-	a := models.Quote{}
+	a := Quote{}
 
 	js := a.String()
 
@@ -36,7 +36,7 @@ func Test_Quote(t *testing.T) {
 		rq.Containsf(js, fld.fn, fld.msg)
 	}
 
-	var ar models.Quotes
+	var ar Quotes
 	ar = append(ar, a)
 
 	js = ar.String()
@@ -51,12 +51,14 @@ func Test_Quote(t *testing.T) {
 //
 // Not much code needed to load the data, but lots of steps to check for any failures to
 // get the data I expect.  Not all the tests use the loaded data.
-func loadFixtureData(ms *modelSuite) ([]models.Author, []models.Annotation, []models.Conversation) {
-	ms.LoadFixture("test quotes")
+func loadFixtureData(ms *ModelSuite) ([]Author, []Annotation, []Conversation) {
+	ms.LoadFixture("test authors")
+	ms.LoadFixture("test annotations")
+	ms.LoadFixture("test conversations")
 
-	authors := []models.Author{}
-	annotations := []models.Annotation{}
-	conversations := []models.Conversation{}
+	authors := []Author{}
+	annotations := []Annotation{}
+	conversations := []Conversation{}
 
 	err := ms.DB.All(&authors)
 
@@ -92,11 +94,11 @@ func loadFixtureData(ms *modelSuite) ([]models.Author, []models.Annotation, []mo
 }
 
 // CreateQuote tries to create a simple quote
-func (ms *modelSuite) Test_CreateQuote() {
+func (ms *ModelSuite) Test_CreateQuote() {
 
 	authors, _, conversations := loadFixtureData(ms)
 
-	quote := models.Quote{
+	quote := Quote{
 		SaidOn:   time.Now(),
 		Sequence: 0,
 		Phrase:   "A test quote.",
@@ -116,10 +118,10 @@ func (ms *modelSuite) Test_CreateQuote() {
 }
 
 // CreateQuoteWithAnnnotation adds a known annotation to the quote
-func (ms *modelSuite) Test_CreateQuoteWithAnnotation() {
+func (ms *ModelSuite) Test_CreateQuoteWithAnnotation() {
 	authors, annotations, conversations := loadFixtureData(ms)
 
-	quote := models.Quote{
+	quote := Quote{
 		SaidOn:     time.Now(),
 		Sequence:   0,
 		Phrase:     "A test quote.",
@@ -139,24 +141,24 @@ func (ms *modelSuite) Test_CreateQuoteWithAnnotation() {
 	}
 }
 
-func (ms *modelSuite) Test_CreateQuoteWithNewAnnotation() {
-	authors, annotations, conversations := loadFixtureData(ms)
+func (ms *ModelSuite) Test_CreateQuoteWithNewAnnotation() {
+	authors, _, conversations := loadFixtureData(ms)
 
-	annotations[0].Note = "blahblahblah"
-	annotations[0].ID = uuid.Nil
+	annotation := &Annotation{Note: "blahblahblah"}
 
-	quote := models.Quote{
+	quote := Quote{
 		SaidOn:     time.Now(),
 		Sequence:   0,
 		Phrase:     "A test quote.",
 		Publish:    true,
-		Annotation: &annotations[0],
+		Annotation: annotation,
 		AuthorID:   authors[0].ID,
 	}
 
 	verrs, err := quote.Create(ms.DB, conversations[0].ID)
 
 	if err != nil {
+		fmt.Printf("err = %s\n", err.Error())
 		ms.Fail("CreateQuote failed", err.Error())
 	}
 
@@ -165,13 +167,13 @@ func (ms *modelSuite) Test_CreateQuoteWithNewAnnotation() {
 	}
 }
 
-func (ms *modelSuite) Test_CreateQuoteWithInvalidAnnotation() {
+func (ms *ModelSuite) Test_CreateQuoteWithInvalidAnnotation() {
 	authors, annotations, conversations := loadFixtureData(ms)
 
 	annotations[0].Note = ""
 	annotations[0].ID = uuid.Nil
 
-	quote := models.Quote{
+	quote := Quote{
 		SaidOn:     time.Now(),
 		Sequence:   0,
 		Phrase:     "A test quote.",
@@ -188,5 +190,32 @@ func (ms *modelSuite) Test_CreateQuoteWithInvalidAnnotation() {
 
 	if !verrs.HasAny() {
 		ms.Fail("CreateQuote failed", "validation failed to catch empty note")
+	}
+}
+
+func (ms *ModelSuite) Test_UpdateQuoteWithNewAnnotation() {
+	authors, _, conversations := loadFixtureData(ms)
+	ms.LoadFixture(("test quotes"))
+
+	quotes := []Quote{}
+
+	err := ms.DB.All(&quotes)
+
+	if err != nil {
+		ms.Fail("Update fetch all quotes failed", err.Error())
+	}
+
+	quote := &quotes[0]
+	quote.AuthorID = authors[0].ID
+
+	verrs, err := quote.Update(ms.DB, conversations[0].ID)
+
+	if err != nil {
+		fmt.Printf("err = %s\n", err.Error())
+		ms.Fail("UpdateQuote failed", err.Error())
+	}
+
+	if verrs.HasAny() {
+		ms.Fail("UpdateQuote validation fail", verrs.String())
 	}
 }
