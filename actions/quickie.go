@@ -213,7 +213,6 @@ func newRequest(c buffalo.Context) *quickieRequest {
 
 func (rq *quickieRequest) LogMetrics() {
 	elapsed := time.Since(rq.rcvdTime).Milliseconds()
-	fmt.Printf("elapsed is %d", elapsed)
 	strElapsed := fmt.Sprint(elapsed)
 
 	q := models.DB.RawQuery("SELECT * FROM log_metric( ? );", strElapsed)
@@ -221,6 +220,7 @@ func (rq *quickieRequest) LogMetrics() {
 	err := q.Exec()
 
 	if err != nil {
+		fmt.Printf("LogMetrics err: %s\n", err.Error())
 		return
 	}
 }

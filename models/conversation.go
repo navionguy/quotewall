@@ -137,10 +137,10 @@ func (c *Conversation) Update() (*validate.Errors, error) {
 		for i, quote := range c.Quotes {
 			quote.Sequence = i
 
-			if c.ID.String() == "" {
+			if quote.ID == uuid.Nil {
 				verrs, err = quote.Create(db, c.ID)
 			} else {
-				verrs, err = quote.Create(db, c.ID)
+				verrs, err = quote.Update(db, c.ID)
 			}
 			if err != nil {
 				return err
