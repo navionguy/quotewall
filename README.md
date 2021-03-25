@@ -28,3 +28,5 @@ recorded over the years.  They are safely saved away in my GitHub account.
 ## The Wall in Action
 
 As soon as I get some security baked into the code, I'm going to setup a server on the web and get the Cloud Wall back in operation.
+
+the day has come: https://www.afaria.quotewall.xyz 
